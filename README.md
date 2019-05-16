@@ -26,6 +26,8 @@ It has a make script so in terminal so just run
 ```
 make
 ```
+This will create a zip with two executables "rvc-tcp-client" and "rvc-tcp-server"
+Copy this zip on different computers and use client and server accordingly
 
 ### And coding style tests
 
