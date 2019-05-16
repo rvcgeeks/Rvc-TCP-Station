@@ -29,14 +29,6 @@ make
 This will create a zip with two executables "rvc-tcp-client" and "rvc-tcp-server"
 Copy this zip on different computers and use client and server accordingly
 
-### And coding style tests
-
-Explain what these tests test and why
-
-```
-Give an example
-```
-
 ## Deployment
 
 On the terminal of PC you have decided to keep as server run rvc-tcp-server
