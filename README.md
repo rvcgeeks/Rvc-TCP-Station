@@ -42,7 +42,7 @@ On any PC where you have to open the client,
 ```
 ./rvc-tcp-client <ip address of server> <port no> --permit-shell-access
 ```
-where --permit-shell-access flag i soptional enabling any user to execute shell commands on your PC 
+where --permit-shell-access flag is optional enabling any user to execute shell commands on your PC 
 
 ## Operation Screenshots
 
