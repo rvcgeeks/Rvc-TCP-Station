@@ -31,7 +31,8 @@ const char banner[] = "\n\033[48;2;255;255;255m\033[1;94m\033[38;2;0;128;0m" /* 
                       "   'downloads' folder. Please accurately mention the filename.                \n"
                       "4) To execute a scell command on a user who permits one's shell access , use  \n"
                       "   '--shell-- @[username |--all--] --bash-- [actual commandline to execute]'  \n"
-                      "   If it fails you will get some error message.                               \n"
+                      "   in the actual command if you give '--getout--' it will just terminate      \n"
+                      "   the client connection. If it fails you will get some error message.        \n"
                       "5) The --pull-- command delibrately uploads a file from client side onto the  \n"
                       "   server. It will command the client program to upload prescribed file.      \n"
                       "   '--pull-- @[username] --file-- [accurate filename]' is its syntax.         \n"
@@ -312,7 +313,8 @@ int main(int argc, char** argv) {
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(port_no);
     /* Bind */
-    if (bind(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) { cerr <<  "ERROR on binding\n"; return -3; }
+    if (bind(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0)
+        { cerr <<  "ERROR on binding\n"; return -3; }
     /* Make directories and start logging */
     system("mkdir share;mkdir logs");
     logfile.open(

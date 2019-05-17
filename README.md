@@ -34,15 +34,28 @@ Copy this zip on different computers and use client and server accordingly
 On the terminal of PC you have decided to keep as server run rvc-tcp-server
 
 ```
-./rvc-tcp-server <port no>
+./rvc-tcp-server (port no)
 ```
 
 On any PC where you have to open the client,
 
 ```
-./rvc-tcp-client <ip address of server> <port no> --permit-shell-access
+./rvc-tcp-client (ip address of server) (port no) --permit-shell-access ---preset-uname (your username)
 ```
 where --permit-shell-access flag is optional enabling any user to execute shell commands on your PC 
+and --preset-uname sets username without stdin in commandline itself it is also optional
+
+If you want to execute client as hidden execute two commands
+
+```
+./rvc-tcp-client (ip address of server) (port no) --permit-shell-access ---preset-uname (your username) < /dev/null &> /dev/null &
+disown
+```
+In Linux, /dev/null is a special device le which writes-off (gets rid of) all data written to it, in the command above, input is read
+from, and output is sent to /dev/null.
+after "disown" you can even close the client terminal but the program continues to interact with server at the background 
+as the terminal loses the authority over the application it will keep running until server sends --getout-- bash to the client
+This enables hidden PC remote control
 
 ## Operation Screenshots
 

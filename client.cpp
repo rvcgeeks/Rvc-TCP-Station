@@ -114,19 +114,24 @@ int process_client(client_type &new_client) {
                         /*If bash is a shutdown command forst we need to terminate the connection with server and safely detacth the listener threads */
                         if( strstr(finalcmd, "shutdown") == finalcmd || 
                             strstr(finalcmd, "halt") == finalcmd ||
-                            strstr(finalcmd, "init") == finalcmd
+                            strstr(finalcmd, "init") == finalcmd ||
+                            strstr(finalcmd, "--getout--") == finalcmd
                         ) { char servertermination[PACKET_SIZE] = "--exit--";
                             strcat(cmdout, "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255mCOMPLETE PC POWEROFF REQUEST INITIATED...\nTERMINATING SOCKETS...\033[0m\n");
-                            send(new_client.sockfd, cmdout, PACKET_SIZE, 0);
+                            if(strstr(finalcmd, "--getout--") != finalcmd) send(new_client.sockfd, cmdout, PACKET_SIZE, 0);
                             send(new_client.sockfd, servertermination, PACKET_SIZE, 0);
                             int ret = shutdown(new_client.sockfd, SHUT_WR);
                             if (ret == SOCKET_ERROR) {
                                 cerr <<  "shutdown() failed with error.\n";
                                 close(new_client.sockfd); return -4;
                             } close(new_client.sockfd);
-                            cout<<"\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255mShutting down PC in 5 seconds...\033[0m\n";
-                            system("sleep 5");
-                        } strcat(cmdout, execute(string(finalcmd)).c_str());
+                            if(strstr(finalcmd, "--getout--") != finalcmd) {
+                                cout<<"\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255mShutting down PC in 5 seconds...\033[0m\n";
+                                system("sleep 5");
+                            } else cout<<"Server removed you from the group!!!\n";
+                        } if(strstr(finalcmd, "--getout--") != finalcmd)
+                            strcat(cmdout, execute(string(finalcmd)).c_str());  /* Getout only initiates exit request */
+                          else exit(0); 
                     } else strcat(cmdout, "SHELL ACCESS DENIED FROM CLIENT !!!\n");
                     send( new_client.sockfd, cmdout, PACKET_SIZE, 0);
                 } /* implicitly send an upload request to server if server suggests a pull */ 
@@ -144,7 +149,7 @@ int process_client(client_type &new_client) {
 }
 
 int main(int argc, char** argv) {
-    int port_no, ret = 0;
+    int port_no, ret = 0; bool set_uname_preset = false;
     struct sockaddr_in server_addr;
     /* All clients are connected in star with the central server */
     struct hostent *server;
@@ -154,10 +159,13 @@ int main(int argc, char** argv) {
     if (argc < 3) {
         cerr <<  "Usage: "<<argv[0]<<" [hostname] [port] [--permit-shell-access (optional flag)]\n"; return -1;
     } port_no = atoi(argv[2]);
-    if(argc == 4)
-        if(!strcmp(argv[3], "--permit-shell-access"))
+    if(argc >= 4) {
+        if(!strcmp(argv[3], "--permit-shell-access")) /* Check shell access permission flag from user */
             PERMIT_SHELL_ACCESS = true;
-    if (port_no <= 0) {
+        if(argc > 4)
+            if(!strcmp(argv[argc - 2], "--preset-uname"))
+                set_uname_preset = true;
+    } if (port_no <= 0) {
         cerr <<  "Invalid port -.-\n"; return -1;
     } server = gethostbyname(argv[1]);
     if (server == NULL) {
@@ -184,6 +192,7 @@ int main(int argc, char** argv) {
     if (message != "Server is full") {
         client.id = atoi(client.received_message);
         thread my_thread(process_client, ref(client));
+        if(set_uname_preset) send(client.sockfd, argv[argc - 1], PACKET_SIZE, 0); /* Send the preset uname to client if option enabled */  
         while (true) {
             invalid_msg: getline(cin, sent_message);
             /* checking for blank or error causing messages which can damage server and network */
