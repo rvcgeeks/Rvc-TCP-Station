@@ -42,7 +42,7 @@ void progressbar(long current, long total){ cout<<" ";
 
 /* Execute command on remote client */
 string execute(const string& command) {
-    system((command + " > .echoes.txt").c_str()); 
+    system((command + " >> .echoes.txt 2>&1").c_str()); /* Get both stdout and stderr in same output file */
     ifstream ifs(".echoes.txt");
     string ret { istreambuf_iterator<char>(ifs), istreambuf_iterator<char>() };
     ifs.close(); // must close the inout stream so the file can be cleaned up
