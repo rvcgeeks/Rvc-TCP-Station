@@ -48,7 +48,7 @@ and --preset-uname sets username without stdin in commandline itself it is also 
 If you want to execute client as hidden execute two commands
 
 ```
-./rvc-tcp-client (ip address of server) (port no) --permit-shell-access ---preset-uname (your username) < /dev/null &> /dev/null &
+./rvc-tcp-client (ip address of server) (port no) --permit-shell-access ---preset-uname (your username) < /dev/null & > /dev/null &
 disown
 ```
 In Linux, /dev/null is a special device le which writes-off (gets rid of) all data written to it, in the command above, input is read
