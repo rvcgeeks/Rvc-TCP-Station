@@ -123,7 +123,8 @@ int process_client(
                         strcat(finalcmd, cmd);
                         send(client_array[i].sockfd, finalcmd, PACKET_SIZE, 0);
                         cout<<"Shell '"<<finalcmd<<"' sent to user @"<<client_array[i].uname<<"\n";
-                        logfile<<"Shell '"<<finalcmd<<"' sent to user @"<<client_array[i].uname<<"\n"; }
+                        logfile<<"Shell '"<<finalcmd<<"' sent to user @"<<client_array[i].uname<<"\n"; 
+                        if(strstr(tempmsg + 11, "--all--") != tempmsg + 11 ) break; }
                 if(strstr(tempmsg + 11, "--all--") != tempmsg + 11 && i == MAX_CLIENTS) {
                     strcpy(errmsg, "The user DOSENT EXIST !!!\n");
                     send(new_client.sockfd, errmsg, PACKET_SIZE, 0); }
