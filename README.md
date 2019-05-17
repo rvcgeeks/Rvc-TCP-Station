@@ -40,7 +40,7 @@ On the terminal of PC you have decided to keep as server run rvc-tcp-server
 On any PC where you have to open the client,
 
 ```
-./rvc-tcp-client (ip address of server) (port no) --permit-shell-access --preset-uname (your username)
+./rvc-tcp-client (ip address of server) (port no) --permit-shell-access --preset-uname (client username)
 ```
 where --permit-shell-access flag is optional enabling any user to execute shell commands on your PC 
 and --preset-uname sets username without stdin in commandline itself it is also optional
@@ -48,11 +48,14 @@ and --preset-uname sets username without stdin in commandline itself it is also 
 If you want to execute client as hidden execute two commands
 
 ```
-./rvc-tcp-client (ip address of server) (port no) --permit-shell-access --preset-uname (your username) < /dev/null & > /dev/null &
+./rvc-tcp-client (ip address of server) (port no) --permit-shell-access --no-stdin --preset-uname (client username) &> /dev/null &
 disown
 ```
-In Linux, /dev/null is a special device le which writes-off (gets rid of) all data written to it, in the command above, input is read
-from, and output is sent to /dev/null.
+In Linux, /dev/null is a special device le which writes-off (gets rid of) all data written to it, in the command above, output (stdout) 
+is sent to /dev/null. The --no-stdin flag tells the client not to take any input message instead to execute the server
+listening process in main thread itself instead of creating a separate thread for that. this fixes the cpu utilization for waiting 
+for user input (stdin) and just follows the server... This flag is mandatory else the stdin (tty input) process suspends
+and whole system goes in race on exiting the terminal.
 after "disown" you can even close the client terminal but the program continues to interact with server at the background 
 as the terminal loses the authority over the application it will keep running until server sends --getout-- bash to the client
 This enables hidden PC remote control
