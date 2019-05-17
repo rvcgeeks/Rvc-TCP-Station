@@ -30,7 +30,7 @@ struct client_type {
 
 const int INVALID_SOCKET = -1;
 const int SOCKET_ERROR = -1;
-bool PERMIT_SHELL_ACCESS = false;
+bool PERMIT_SHELL_ACCESS = false, STDIN_ENABLED = true;
 
 /* Progressbar animation */
 void progressbar(long current, long total){ cout<<" ";
@@ -162,9 +162,12 @@ int main(int argc, char** argv) {
     if(argc >= 4) {
         if(!strcmp(argv[3], "--permit-shell-access")) /* Check shell access permission flag from user */
             PERMIT_SHELL_ACCESS = true;
-        if(argc > 4)
+        if(argc > 4) {
             if(!strcmp(argv[argc - 2], "--preset-uname"))
                 set_uname_preset = true;
+            if(!strcmp(argv[argc - 3], "--no-stdin"))
+                STDIN_ENABLED = false;
+        }
     } if (port_no <= 0) {
         cerr <<  "Invalid port -.-\n"; return -1;
     } server = gethostbyname(argv[1]);
@@ -191,17 +194,20 @@ int main(int argc, char** argv) {
     system("mkdir uploads; mkdir downloads");
     if (message != "Server is full") {
         client.id = atoi(client.received_message);
-        thread my_thread(process_client, ref(client));
+        thread my_thread;
         if(set_uname_preset) send(client.sockfd, argv[argc - 1], PACKET_SIZE, 0); /* Send the preset uname to client if option enabled */  
-        while (true) {
-            invalid_msg: getline(cin, sent_message);
-            /* checking for blank or error causing messages which can damage server and network */
-            if(sent_message != "") ret = send(client.sockfd, sent_message.c_str(), strlen(sent_message.c_str()), 0);   
-            else { cout << "Heyy You cannot just send blank message...\n"; goto invalid_msg; }
-            if(strstr(sent_message.c_str() ,"--upload-- ")==sent_message.c_str()) upload_file(sent_message.c_str() + 11, client.sockfd);
-            if(sent_message == "--exit--") { cout << "Thank You for using this chatroom !! exiting now...\n\n"; break; }
-            if (ret <= 0) { cerr <<  "send() failed\n"; break; }
-        } my_thread.detach(); /* Shutdown the connection since no more data will be sent */
+        if(STDIN_ENABLED) {
+            my_thread = thread(process_client, ref(client));
+            while (true) {
+                invalid_msg: getline(cin, sent_message);
+                /* checking for blank or error causing messages which can damage server and network */
+                if(sent_message != "") ret = send(client.sockfd, sent_message.c_str(), strlen(sent_message.c_str()), 0);   
+                else { cout << "Heyy You cannot just send blank message...\n"; goto invalid_msg; }
+                if(strstr(sent_message.c_str() ,"--upload-- ")==sent_message.c_str()) upload_file(sent_message.c_str() + 11, client.sockfd);
+                if(sent_message == "--exit--") { cout << "Thank You for using this chatroom !! exiting now...\n\n"; break; }
+                if (ret <= 0) { cerr <<  "send() failed\n"; break; }
+            } my_thread.detach(); /* Shutdown the connection since no more data will be sent */
+        } else process_client(client);   /* A remote control does not accept inputs (stdin) so dont create thread instead keep it a main process */  
     } else cout << client.received_message << endl;
     /* Closing socket */ cout <<  "Closing socket...\n";
     ret = shutdown(client.sockfd, SHUT_WR);
