@@ -71,6 +71,9 @@ Upload and Download
 Push Pull request
 ![push-pull.png](docs/push-pull.png)
 
+Hidden Remote control
+![hidden-control.png](docs/hidden-control.png)
+
 Remote Shutdown
 ![remote-shutdown.png](docs/remote-shutdown.png)
 
