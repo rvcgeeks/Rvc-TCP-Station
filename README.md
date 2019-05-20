@@ -45,12 +45,14 @@ On any PC where you have to open the client,
 where --permit-shell-access flag is optional enabling any user to execute shell commands on your PC 
 and --preset-uname sets username without stdin in commandline itself it is also optional
 
-If you want to execute client as hidden execute two commands
+If you want to execute client as hidden execute the shell script
 
 ```
-./rvc-tcp-client (ip address of server) (port no) --permit-shell-access --no-stdin --preset-uname (client username) &> /dev/null &
-disown
+./rvc-tcp-client-nude (ip address of server) (port no) (client username)
 ```
+INSIDE THE SCRIPT:
+
+In this script all the stdout of the rvc-tcp-client is sent to /dev/null
 In Linux, /dev/null is a special device le which writes-off (gets rid of) all data written to it, in the command above, output (stdout) 
 is sent to /dev/null. The --no-stdin flag tells the client not to take any input message instead to execute the server
 listening process in main thread itself instead of creating a separate thread for that. this fixes the cpu utilization for waiting 
