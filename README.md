@@ -50,6 +50,9 @@ If you want to execute client as hidden execute the shell script
 ```
 ./rvc-tcp-client-nude (ip address of server) (port no) (client username)
 ```
+on success it wont echo anything so please dont be afraid... any error message will be displayed if error exists
+after that you can close the terminal 
+
 INSIDE THE SCRIPT:
 
 In this script all the stdout of the rvc-tcp-client is sent to /dev/null
@@ -61,6 +64,30 @@ and whole system goes in race on exiting the terminal.
 after "disown" you can even close the client terminal but the program continues to interact with server at the background 
 as the terminal loses the authority over the application it will keep running until server sends --getout-- bash to the client
 This enables hidden PC remote control
+
+## Instructions
+
+1) Just type the message and press enter to send your message.
+2) To upload a file first copy it in your 'uploads folder created by app' and 
+   then in your chats send command '--upload-- yourfilename' to server to send
+   it on group.. everyone in that group will be able to download that file.
+3) To download a file in the group send the command '--download-- filename' to
+   server and after successful download it will appear in your 
+   'downloads' folder. Please accurately mention the filename. 
+4) To execute a scell command on a user who permits one's shell access , use
+   '--shell-- @[username |--all--] --bash-- [actual commandline to execute]'
+   in the actual command if you give '--getout--' it will just terminate 
+   the client connection. If it fails you will get some error message. 
+5) The --pull-- command delibrately uploads a file from client side onto the 
+   server. It will command the client program to upload prescribed file. 
+   '--pull-- @[username] --file-- [accurate filename]' is its syntax. 
+6) Similar is with --push-- command but the opposite action to command the 
+   client to download the prescribed file from server. 
+   '--push-- @[username |--all--] --file-- [accurate filename]' is its syntax.
+7) To exit the room just send ' --exit-- ' to the server so it will
+   terminate your connection.
+
+![commands.png](docs/commands.png)
 
 ## Operation Screenshots
 
