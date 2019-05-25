@@ -1,5 +1,0 @@
-#!/bin/bash
-#execute the client as background process
-	
-	./rvc-tcp-client $1 $2 --permit-shell-access --no-stdin --preset-uname $3 > /dev/null &
-	disown
