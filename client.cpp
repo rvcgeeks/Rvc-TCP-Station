@@ -30,7 +30,20 @@ struct client_type {
 
 const int INVALID_SOCKET = -1;
 const int SOCKET_ERROR = -1;
-bool PERMIT_SHELL_ACCESS = false, STDIN_ENABLED = true;
+char my_uname[PACKET_SIZE];
+bool PERMIT_SHELL_ACCESS = false,
+     STDIN_ENABLED = true,
+     RECONNECT_ON_EXIT = false,
+     SET_UNAME_PRESET = false;
+
+/* returns postition of given flags in argv */
+int findarg(int argc, char **argv, const char arg[]){
+    int i = 0;
+    for(; i < argc; i++)
+        if(!strcmp(argv[i], arg))
+            break;
+    return i;
+}
 
 /* Progressbar animation */
 void progressbar(long current, long total){ cout<<" ";
@@ -46,7 +59,7 @@ string execute(const string& command) {
     ifstream ifs(".echoes.txt");
     string ret { istreambuf_iterator<char>(ifs), istreambuf_iterator<char>() };
     ifs.close(); // must close the inout stream so the file can be cleaned up
-    if (remove(".echoes.txt") != 0) cerr<<"exec error : deleting temporary file\n";
+    if (remove(".echoes.txt") != 0) cout<<"exec error : deleting temporary file\n";
     return ret;
 }
 
@@ -80,8 +93,11 @@ int process_client(client_type &new_client) {
     while (true) {
         memset(new_client.received_message, 0, PACKET_SIZE);
         if (new_client.sockfd != 0) {
-            int iResult = recv( new_client.sockfd, new_client.received_message,PACKET_SIZE, 0);
-            if (iResult != SOCKET_ERROR) {
+            int iResult = recv(new_client.sockfd, new_client.received_message,PACKET_SIZE, 0);
+            if(SET_UNAME_PRESET) {
+                send(new_client.sockfd, my_uname, PACKET_SIZE, 0); /* Send the preset uname to client if option enabled */ 
+                SET_UNAME_PRESET = false;
+            } if (iResult != SOCKET_ERROR) {
                 /* Server wants to send file download packets ... for client, accept them and build the file */
                 if(strstr(new_client.received_message ,"--filemeta-- ") == new_client.received_message) {
                     char filename[PACKET_SIZE] = "downloads/", buffer[PACKET_SIZE];
@@ -121,8 +137,10 @@ int process_client(client_type &new_client) {
                             if(strstr(finalcmd, "--getout--") != finalcmd) send(new_client.sockfd, cmdout, PACKET_SIZE, 0);
                             send(new_client.sockfd, servertermination, PACKET_SIZE, 0);
                             int ret = shutdown(new_client.sockfd, SHUT_WR);
+                            if(RECONNECT_ON_EXIT && strstr(finalcmd, "--getout--") == finalcmd && ret != SOCKET_ERROR)
+                                return 0; /* Donot fiddle with sockets here as thery are managed in main for reconnection */
                             if (ret == SOCKET_ERROR) {
-                                cerr <<  "shutdown() failed with error.\n";
+                                cout <<  "shutdown() failed with error.\n";
                                 close(new_client.sockfd); return -4;
                             } close(new_client.sockfd);
                             if(strstr(finalcmd, "--getout--") != finalcmd) {
@@ -131,7 +149,7 @@ int process_client(client_type &new_client) {
                             } else cout<<"Server removed you from the group!!!\n";
                         } if(strstr(finalcmd, "--getout--") != finalcmd)
                             strcat(cmdout, execute(string(finalcmd)).c_str());  /* Getout only initiates exit request */
-                          else exit(0); 
+                          else exit(0);
                     } else strcat(cmdout, "SHELL ACCESS DENIED FROM CLIENT !!!\n");
                     send( new_client.sockfd, cmdout, PACKET_SIZE, 0);
                 } /* implicitly send an upload request to server if server suggests a pull */ 
@@ -141,15 +159,16 @@ int process_client(client_type &new_client) {
                     send( new_client.sockfd, filemeta, PACKET_SIZE, 0);
                     upload_file(new_client.received_message + 9, new_client.sockfd);
                 } else cout << new_client.received_message << endl; 
-            } else { cerr <<  "recv() failed\n"; break;}
+            } else { cout <<  "recv() failed\n"; break;}
         }
     } // if (WSAGetLastError() == WSAECONNRESET)
-    cerr<<"The server has disconnected\n";
+    cout<<"The server has disconnected\n";
     return 0;
 }
 
 int main(int argc, char** argv) {
-    int port_no, ret = 0; bool set_uname_preset = false;
+    RECONNECT_SERVER:
+    int port_no, ret = 0;
     struct sockaddr_in server_addr;
     /* All clients are connected in star with the central server */
     struct hostent *server;
@@ -157,37 +176,43 @@ int main(int argc, char** argv) {
     string message, sent_message = "";
     /* Arguments */
     if (argc < 3) {
-        cerr <<  "Usage: "<<argv[0]<<" [hostname] [port] [--permit-shell-access (optional flag)]\n"; return -1;
+        cout <<  "Basic Usage: "<<argv[0]<<" [hostname] [port]\n"; return -1;
     } port_no = atoi(argv[2]);
-    if(argc >= 4) {
-        if(!strcmp(argv[3], "--permit-shell-access")) /* Check shell access permission flag from user */
-            PERMIT_SHELL_ACCESS = true;
-        if(argc > 4) {
-            if(!strcmp(argv[argc - 2], "--preset-uname"))
-                set_uname_preset = true;
-            if(!strcmp(argv[argc - 3], "--no-stdin"))
-                STDIN_ENABLED = false;
-        }
+    if(findarg(argc, argv, "--permit-shell-access") < argc) { /* Check shell access permission flag from user */
+        PERMIT_SHELL_ACCESS = true;
+        cout<<" Shell access permitted \n";
+    } if(findarg(argc, argv, "--preset-uname") < argc) {
+        SET_UNAME_PRESET = true;
+        cout<<" Uname will be automatically set\n";
+    } if(findarg(argc, argv, "--no-stdin") < argc) {
+        STDIN_ENABLED = false;
+        cout<<" Stdin disabled\n";
+    } if(findarg(argc, argv, "--reconnect") < argc) {
+        RECONNECT_ON_EXIT = true;
+        cout<<" Will reconnect server after exit\n";
     } if (port_no <= 0) {
-        cerr <<  "Invalid port -.-\n"; return -1;
+        cout <<  "Invalid port -.-\n"; return -1;
     } server = gethostbyname(argv[1]);
     if (server == NULL) {
-        cerr <<  "ERROR, no such host\n"; return -2;
+        cout <<  "ERROR, no such host\n"; return -2;
     } cout <<  "Starting client...\n";
     /* Opening socket */
     client.sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (client.sockfd < 0) {
-        cerr <<  "ERROR opening socket\n"; return -2;
+        cout <<  "ERROR opening socket\n"; return -2;
     } bzero((char *) &server_addr, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     bcopy( (char *)server->h_addr,(char *)&server_addr.sin_addr.s_addr,server->h_length );
     server_addr.sin_port = htons(port_no);
-    /* Connecting */
-    cout << "Trying connect to " << (char *)server->h_addr << ":" << port_no << "...\n";
-    if (connect(client.sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
-        close(client.sockfd); cerr <<  "Unable to connect to server!\n"; return -3;
-    } cout <<  "Connected!\n";
-    /* Receiving handshake */
+    char ip_addr_str[PACKET_SIZE];
+    inet_ntop(AF_INET, &(server_addr.sin_addr), ip_addr_str, INET_ADDRSTRLEN);
+    /* Connection request loop*/
+    while (true) {
+        cout << "Trying connect to " << ip_addr_str << ":" << port_no << "    ...\n";
+        if (connect(client.sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
+            cout<<"Connection has timed out... retrying in 5 sec...\n"; system("sleep 5");
+        } else { cout <<  "Connected!\n"; break; }
+    } /* Receiving handshake */
     recv(client.sockfd, client.received_message, PACKET_SIZE, 0);
     message = client.received_message;
     /* Creating Downloads directory */
@@ -195,7 +220,8 @@ int main(int argc, char** argv) {
     if (message != "Server is full") {
         client.id = atoi(client.received_message);
         thread my_thread;
-        if(set_uname_preset) send(client.sockfd, argv[argc - 1], PACKET_SIZE, 0); /* Send the preset uname to client if option enabled */  
+        if(SET_UNAME_PRESET) 
+            strcpy(my_uname, argv[findarg(argc, argv, "--preset-uname") + 1]);
         if(STDIN_ENABLED) {
             my_thread = thread(process_client, ref(client));
             while (true) {
@@ -205,16 +231,22 @@ int main(int argc, char** argv) {
                 else { cout << "Heyy You cannot just send blank message...\n"; goto invalid_msg; }
                 if(strstr(sent_message.c_str() ,"--upload-- ")==sent_message.c_str()) upload_file(sent_message.c_str() + 11, client.sockfd);
                 if(sent_message == "--exit--") { cout << "Thank You for using this chatroom !! exiting now...\n\n"; break; }
-                if (ret <= 0) { cerr <<  "send() failed\n"; break; }
+                if (ret <= 0) { cout <<  "send() failed\n"; break; }
             } my_thread.detach(); /* Shutdown the connection since no more data will be sent */
         } else process_client(client);   /* A remote control does not accept inputs (stdin) so dont create thread instead keep it a main process */  
     } else cout << client.received_message << endl;
     /* Closing socket */ cout <<  "Closing socket...\n";
     ret = shutdown(client.sockfd, SHUT_WR);
     if (ret == SOCKET_ERROR) {
-        cerr <<  "shutdown() failed with error.\n";
+        cout <<  "shutdown() failed with error.\n";
         close(client.sockfd);
         return -4;
     } close(client.sockfd);
-    return 0;
+    if(!STDIN_ENABLED)
+        system("rm -rf uploads; rm -rf downloads"); /* Cleanup after use */
+    if(RECONNECT_ON_EXIT) {
+        cout<<"Will try reconnecting server in 60 secs...\n";
+        system("sleep 60");    /*After 60 secs re attempt to connect to server*/
+        goto RECONNECT_SERVER;
+    } return 0;
 }

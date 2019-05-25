@@ -38,8 +38,10 @@ const char banner[] = "\n\033[48;2;255;255;255m\033[1;94m\033[38;2;0;128;0m" /* 
                       "   '--pull-- @[username] --file-- [accurate filename]' is its syntax.         \n"
                       "6) Similar is with --push-- command but the opposite action to command the    \n"
                       "   client to download the prescribed file from server.                        \n"
+                      "7) To view all online users type command '--anyonehere--'. You will get a list\n"
+                      "   of all available users with their ip address.                              \n"
                       "   '--push-- @[username |--all--] --file-- [accurate filename]' is its syntax.\n"
-                      "7) To exit the room just send ' --exit-- ' to the server so it will           \n"
+                      "8) To exit the room just send ' --exit-- ' to the server so it will           \n"
                       "   terminate your connection.                                                 \033[0m\n\n"
                       "Please enter your unique username for other group members to identify:";
 
@@ -80,6 +82,7 @@ struct client_type {
     int id;
     int sockfd;
     string uname;
+    string ip_addr_str;
 };
 
 const int INVALID_SOCKET = -1;
@@ -128,6 +131,13 @@ int process_client(
                 if(strstr(tempmsg + 11, "--all--") != tempmsg + 11 && i == MAX_CLIENTS) {
                     strcpy(errmsg, "The user DOSENT EXIST !!!\n");
                     send(new_client.sockfd, errmsg, PACKET_SIZE, 0); }
+            } /* Check whether it is request to show all online users */
+            if(strstr(tempmsg,"--anyonehere--") == tempmsg) {
+                string reply = "\n\n\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m ONLINE USERS: \033[0m\n\n";
+                for(int i = 0; i < MAX_CLIENTS; i++)
+                    if(client_array[i].uname != "")
+                        reply += to_string(i + 1) + ") " + client_array[i].ip_addr_str + " > @" + client_array[i].uname + "\n";
+                send(new_client.sockfd, reply.c_str(), PACKET_SIZE, 0);
             } /* Check whether it is file upload request ... for server, accept packets and build file in ./share/ */
             if(strstr(tempmsg,"--upload-- ") == tempmsg) {
                 char filename[PACKET_SIZE] = "share/", buffer[PACKET_SIZE];
@@ -268,6 +278,7 @@ int process_client(
                     strstr(tempmsg ,"--pull--") != tempmsg &&
                     strstr(tempmsg ,"--push--") != tempmsg &&
                     strstr(tempmsg ,"--filemeta--") != tempmsg &&
+                    strstr(tempmsg ,"--anyonehere--") != tempmsg &&
                     msg != ""
                 ) { for(int i = 0; i < MAX_CLIENTS; i++)
                         if (client_array[i].sockfd != INVALID_SOCKET && new_client.id != i)
@@ -356,6 +367,7 @@ int main(int argc, char** argv) {
                             + " (Client #" + to_string(client[temp_id].id) 
                             + ") accepted\n";
             cout << accmsg; logfile << accmsg;
+            client[temp_id].ip_addr_str = string(remote_host) + ":" + to_string(ntohs(client_addr.sin_port));
             /* Send the id to that client */
             msg =  to_string(client[temp_id].id);
             send(client[temp_id].sockfd, msg.c_str(), strlen(msg.c_str()), 0);

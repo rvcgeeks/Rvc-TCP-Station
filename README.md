@@ -36,24 +36,35 @@ On the terminal of PC you have decided to keep as server run rvc-tcp-server
 ```
 ./rvc-tcp-server (port no)
 ```
+The clients can connect via your hostname so you can give a unique host name
+by running the following command as Root:
+```
+hostname (your custom hostname)
+```
+However its will restore to defaults if server reboots.
+To show your current hostname just run above command with no arguments.
 
 On any PC where you have to open the client,
 
 ```
-./rvc-tcp-client (ip address of server) (port no) --permit-shell-access --preset-uname (client username)
+./rvc-tcp-client (hostname/ip address of server) (port no) --reconnect --permit-shell-access --preset-uname (client username)
 ```
 where --permit-shell-access flag is optional enabling any user to execute shell commands on your PC 
 and --preset-uname sets username without stdin in commandline itself it is also optional
+--reconnect will make server connection automatically after 60 seconds even on exit.
+ The order of flags donot matter at all .. application will understand it
+but specify the username after --preset-uname flag if given.
 
-If you want to execute client as hidden execute the shell script
+For some special options and if you feel the overall command syntax confusing,
+We have an intuitive and interactive script that will launch the client with
+above parameters automatically. For that run
 
 ```
-./rvc-tcp-client-nude (ip address of server) (port no) (client username)
+./rvc-tcp-station
 ```
-on success it wont echo anything so please dont be afraid... any error message will be displayed if error exists
-after that you can close the terminal 
+One can also set the client as a startup service via this script 
 
-INSIDE THE SCRIPT:
+How is hidden client implemented:
 
 In this script all the stdout of the rvc-tcp-client is sent to /dev/null
 In Linux, /dev/null is a special device le which writes-off (gets rid of) all data written to it, in the command above, output (stdout) 
@@ -84,12 +95,17 @@ This enables hidden PC remote control
 6) Similar is with --push-- command but the opposite action to command the 
    client to download the prescribed file from server. 
    '--push-- @[username |--all--] --file-- [accurate filename]' is its syntax.
-7) To exit the room just send ' --exit-- ' to the server so it will
+7) To view all online users type command '--anyonehere--'. You will get a list
+   of all available users with their ip address.
+8) To exit the room just send ' --exit-- ' to the server so it will
    terminate your connection.
 
 ![commands.png](docs/commands.png)
 
 ## Operation Screenshots
+
+Launcher Script
+![launcher.png](docs/launcher.png)
 
 Normal Chatting
 ![chats-shell.png](docs/chats-shell.png)

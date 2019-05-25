@@ -1,0 +1,80 @@
+#!/bin/bash
+	
+	read_credenentials() {
+		echo "  Enter hostname / ip address of host to connect:"
+		read server_hostname
+		echo "  Enter the port no. of server to connect"
+		read server_port_no
+	}
+	
+	read_uname() {
+		echo "  Enter the username for this client"
+		read preset_uname
+	}
+	
+	
+	printf "  \033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m           <<< RVC_TCP_STATION LAUNCHPAD BY RVCGEEKS >>>           \033[0m
+\033[1;94m\033[38;2;0;255;0m
+  [1] launch client
+  [2] launch server
+  [3] launch client as hidden
+  [4] make client as a startup process 
+  [5] uninstall client from startup\033[0m 
+  
+  Enter a choice >>> "
+	read option
+	
+	case $option in
+	1)
+		read_credenentials
+		echo "  Do you want others to access your shell ? [y/n] "
+		read shell_permit
+		case $shell_permit in
+		n)	./rvc-tcp-client $server_hostname $server_port_no
+			;;
+		y) 	./rvc-tcp-client $server_hostname $server_port_no --permit-shell-access
+			;;
+		*)	echo "INVALID"
+			;;
+		esac
+		;;
+	2)
+		echo "  Enter the port no. of server to connect"
+		read server_port_no
+		./rvc-tcp-server $server_port_no
+		;;
+	3)
+		read_credenentials; read_uname
+		./rvc-tcp-client $server_hostname $server_port_no --permit-shell-access --no-stdin --preset-uname $preset_uname > /dev/null &
+		disown
+		;;
+	4)
+		echo "  WARNING: The startup service will be taylor-made for connecting prescribed server and port only.
+           This service will be created for launching the client residing in current directory of this launcher.
+"
+		read_credenentials; read_uname
+		echo "Wants = network.target
+After = syslog.target network-online.target
+
+[Service]
+Type=simple
+ExecStart=$(pwd)/rvc-tcp-client $server_hostname $server_port_no --permit-shell-access --reconnect --no-stdin --preset-uname $preset_uname > /dev/null &
+Restart=on-failure
+RestartSec=10
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target" > /etc/systemd/system/rvc-tcp-client.service
+		systemctl daemon-reload
+		systemctl enable rvc-tcp-client
+		systemctl start rvc-tcp-client
+		;;
+	5)
+		systemctl stop rvc-tcp-client
+		systemctl disable rvc-tcp-client
+		systemctl daemon-reload
+		rm /etc/systemd/system/rvc-tcp-client.service
+		;;
+	*) 
+		echo "  INVALID OPTION!!!"
+	esac
