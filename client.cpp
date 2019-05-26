@@ -31,6 +31,7 @@ struct client_type {
 const int INVALID_SOCKET = -1;
 const int SOCKET_ERROR = -1;
 char my_uname[PACKET_SIZE];
+int SHELL_EXIT = 0;
 bool PERMIT_SHELL_ACCESS = false,
      STDIN_ENABLED = true,
      RECONNECT_ON_EXIT = false,
@@ -55,7 +56,7 @@ void progressbar(long current, long total){ cout<<" ";
 
 /* Execute command on remote client */
 string execute(const string& command) {
-    system((command + " >> .echoes.txt 2>&1").c_str()); /* Get both stdout and stderr in same output file */
+    SHELL_EXIT = system((command + " >> .echoes.txt 2>&1").c_str()); /* Get both stdout and stderr in same output file */
     ifstream ifs(".echoes.txt");
     string ret { istreambuf_iterator<char>(ifs), istreambuf_iterator<char>() };
     ifs.close(); // must close the inout stream so the file can be cleaned up
@@ -145,12 +146,13 @@ int process_client(client_type &new_client) {
                             } close(new_client.sockfd);
                             if(strstr(finalcmd, "--getout--") != finalcmd) {
                                 cout<<"\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255mShutting down PC in 5 seconds...\033[0m\n";
-                                system("sleep 5");
+                                SHELL_EXIT = system("sleep 5");
                             } else cout<<"Server removed you from the group!!!\n";
                         } if(strstr(finalcmd, "--getout--") != finalcmd)
                             strcat(cmdout, execute(string(finalcmd)).c_str());  /* Getout only initiates exit request */
                           else exit(0);
                     } else strcat(cmdout, "SHELL ACCESS DENIED FROM CLIENT !!!\n");
+                    if(SHELL_EXIT != 0) strcat(cmdout, "\n\n WARNING: SHELL AT THIS REMOTE CLIENT HAS EXIT WITH NON ZERO STATUS!!!\n");
                     send( new_client.sockfd, cmdout, PACKET_SIZE, 0);
                 } /* implicitly send an upload request to server if server suggests a pull */ 
                 else if(strstr(new_client.received_message ,"--pull-- ") == new_client.received_message){
@@ -210,13 +212,13 @@ int main(int argc, char** argv) {
     while (true) {
         cout << "Trying connect to " << ip_addr_str << ":" << port_no << "    ...\n";
         if (connect(client.sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
-            cout<<"Connection has timed out... retrying in 5 sec...\n"; system("sleep 5");
+            cout<<"Connection has timed out... retrying in 5 sec...\n"; SHELL_EXIT = system("sleep 5");
         } else { cout <<  "Connected!\n"; break; }
     } /* Receiving handshake */
     recv(client.sockfd, client.received_message, PACKET_SIZE, 0);
     message = client.received_message;
     /* Creating Downloads directory */
-    system("mkdir uploads; mkdir downloads");
+    SHELL_EXIT = system("mkdir uploads; mkdir downloads");
     if (message != "Server is full") {
         client.id = atoi(client.received_message);
         thread my_thread;
@@ -243,10 +245,10 @@ int main(int argc, char** argv) {
         return -4;
     } close(client.sockfd);
     if(!STDIN_ENABLED)
-        system("rm -rf uploads; rm -rf downloads"); /* Cleanup after use */
+        SHELL_EXIT = system("rm -rf uploads; rm -rf downloads"); /* Cleanup after use */
     if(RECONNECT_ON_EXIT) {
         cout<<"Will try reconnecting server in 60 secs...\n";
-        system("sleep 60");    /*After 60 secs re attempt to connect to server*/
+        SHELL_EXIT = system("sleep 60");    /*After 60 secs re attempt to connect to server*/
         goto RECONNECT_SERVER;
     } return 0;
 }

@@ -14,12 +14,15 @@
 	
 	
 	printf "  \033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m           <<< RVC_TCP_STATION LAUNCHPAD BY RVCGEEKS >>>           \033[0m
+
+  check out https://www.github.com/rvcgeeks for more cool stuff!!
+  
 \033[1;94m\033[38;2;0;255;0m
   [1] launch client
   [2] launch server
   [3] launch client as hidden
-  [4] make client as a startup process 
-  [5] uninstall client from startup\033[0m 
+  [4] install client as a boot service
+  [5] uninstall client from boot\033[0m 
   
   Enter a choice >>> "
 	read option

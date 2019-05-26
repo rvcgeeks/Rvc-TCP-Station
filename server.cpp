@@ -328,8 +328,11 @@ int main(int argc, char** argv) {
     if (bind(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0)
         { cerr <<  "ERROR on binding\n"; return -3; }
     /* Make directories and start logging */
-    system("mkdir share;mkdir logs");
-    logfile.open(
+    int succ = system("mkdir share;mkdir logs");
+    if(succ != 0) {
+        cout << "Cannot create share and logs directory!!!\nTerminating...";
+        return -4;
+    } logfile.open(
         string("logs/") + (to_string(port_no) + "." 
         + to_string(int(time(NULL))) + ".log").c_str(),
         ios::out | ios::ate );
