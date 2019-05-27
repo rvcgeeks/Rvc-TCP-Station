@@ -1,4 +1,5 @@
 #!/bin/bash
+#created by @rvcgeeks____ @Pune , India
 	
 	read_credenentials() {
 		echo "  Enter hostname / ip address of host to connect:"
@@ -13,10 +14,14 @@
 	}
 	
 	
-	printf "  \033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m           <<< RVC_TCP_STATION LAUNCHPAD BY RVCGEEKS >>>           \033[0m
+	case $1 in 
+	-u)
+		export option=5    # -u indicates uninstall so check that
+		;;
+	*)
+		printf "  \033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m           <<< RVC_TCP_STATION LAUNCHPAD BY RVCGEEKS >>>           \033[0m
 
   check out https://www.github.com/rvcgeeks for more cool stuff!!
-  
 \033[1;94m\033[38;2;0;255;0m
   [1] launch client
   [2] launch server
@@ -25,7 +30,9 @@
   [5] uninstall client from boot\033[0m 
   
   Enter a choice >>> "
-	read option
+		read option
+		;;
+	esac
 	
 	case $option in
 	1)
@@ -33,11 +40,14 @@
 		echo "  Do you want others to access your shell ? [y/n] "
 		read shell_permit
 		case $shell_permit in
-		n)	./rvc-tcp-client $server_hostname $server_port_no
+		n)
+			./rvc-tcp-client $server_hostname $server_port_no
 			;;
-		y) 	./rvc-tcp-client $server_hostname $server_port_no --permit-shell-access
+		y)	
+			./rvc-tcp-client $server_hostname $server_port_no --permit-shell-access
 			;;
-		*)	echo "INVALID"
+		*)
+			echo "INVALID"
 			;;
 		esac
 		;;
@@ -77,6 +87,7 @@ WantedBy=multi-user.target" > /etc/systemd/system/rvc-tcp-client.service
 		systemctl disable rvc-tcp-client
 		systemctl daemon-reload
 		rm /etc/systemd/system/rvc-tcp-client.service
+		rm -rf /uploads /downloads
 		;;
 	*) 
 		echo "  INVALID OPTION!!!"

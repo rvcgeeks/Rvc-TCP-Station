@@ -47,7 +47,7 @@ To show your current hostname just run above command with no arguments.
 On any PC where you have to open the client,
 
 ```
-./rvc-tcp-client (hostname/ip address of server) (port no) --reconnect --permit-shell-access --preset-uname (client username)
+./rvc-tcp-client (hostname/ip address of server) (port no) -reconnect --permit-shell-access --preset-uname (client username)
 ```
 where --permit-shell-access flag is optional enabling any user to execute shell commands on your PC 
 and --preset-uname sets username without stdin in commandline itself it is also optional
@@ -63,6 +63,16 @@ above parameters automatically. For that run
 ./rvc-tcp-station
 ```
 One can also set the client as a startup service via this script 
+to uninstall the client from startup service (if exist) just send -u flag to this script
+to do it in single commandline itself
+```
+./rvc-tcp-station -u
+```
+If you want to completely and remotely uninstall the client from remote pc, on RSH of victim in your client program you can send command
+```
+--shell-- @(victim uname) --bash-- init; (path to the script)/rvc-tcp-station -u
+```
+So 'init' will cause the connection to terminate and immediately the uninstall is carried out
 
 How is hidden client implemented:
 
