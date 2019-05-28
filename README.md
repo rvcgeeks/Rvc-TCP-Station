@@ -78,6 +78,9 @@ be damaged? will the network get destroyed? absolutely no as we have caught SIGT
 have gracefully closed the ongoing connection with proper --exit-- request to server. SIGTERM is sent by OS to 
 running applications to give them a chance to execute cleanup and their own exit routines .. we have just made use 
 of it. So by these all features of client a hidden remote control of deploy and forget type can be implemented. 
+Atleast for now, server does not have this feature as it may be serving multiple clients and
+exit request is from client side. To do this we have to first close every other client connnected to it that too with proper exit
+requests and then leaving the port ... One can contribute in adding this feature however. 
 
 How is hidden client implemented:
 
@@ -90,9 +93,6 @@ and whole system goes in race on exiting the terminal.
 after "disown" you can even close the client terminal but the program continues to interact with server at the background 
 as the terminal loses the authority over the application it will keep running until server sends --getout-- bash to the client
 This enables hidden PC remote control.
-Atleast for now, server does not have this feature as it may be serving multiple clients and
-exit request is from client side. To do this we have to first close every other client connnected to it that too with proper exit
-requests and then leaving the port ... One can contribute in adding this feature however. 
 
 ## Instructions
 
