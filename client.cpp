@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <csignal>
 #include <netdb.h>
 using namespace std;
 
@@ -37,7 +38,24 @@ bool PERMIT_SHELL_ACCESS = false,
      STDIN_ENABLED = true,
      RECONNECT_ON_EXIT = false,
      SET_UNAME_PRESET = false;
+int MY_SOCKFD;
 
+void shutdown_connection(int signum){   /* negative signum indicates everything is fine else it is a SIGTERM */
+    /* Closing socket */ 
+    cout <<  "Closing socket...\n";
+    
+    /* if SIGTERM then first request server an exit request */
+    if(signum > 0){
+        char servertermination[PACKET_SIZE] = "--exit--";
+        send(MY_SOCKFD, servertermination, PACKET_SIZE, 0);
+    }
+    int ret = shutdown(MY_SOCKFD, SHUT_WR);
+    if (ret == SOCKET_ERROR)
+        cout <<  "shutdown() failed with error.\n";
+    close(MY_SOCKFD);
+    if(signum > 0)
+        exit(0);
+}
      
 /* returns postition of given flags in argv */
 int findarg(int argc, char **argv, const char arg[]){
@@ -47,8 +65,6 @@ int findarg(int argc, char **argv, const char arg[]){
             break;
     return i;
 }
-
-
 
 /* Progressbar animation */
 void progressbar(long current, long total){ cout<<" ";
@@ -148,7 +164,8 @@ int process_client(client_type &new_client) {
                         recv(new_client.sockfd, buffer, PACKET_SIZE, 0);
                         file_to_recieve.write(buffer, PACKET_SIZE);
                         progressbar(chunks, total);
-                    } memset(buffer, 0, PACKET_SIZE);
+                    } 
+                    memset(buffer, 0, PACKET_SIZE);
                     if(remainder != 0) {
                         recv(new_client.sockfd, buffer, PACKET_SIZE, 0);
                         file_to_recieve.write(buffer, remainder);
@@ -186,11 +203,9 @@ int process_client(client_type &new_client) {
                             
                             if(RECONNECT_ON_EXIT && strstr(finalcmd, "--getout--") == finalcmd && ret != SOCKET_ERROR)
                                 return 0; /* Donot fiddle with sockets here as thery are managed in main for reconnection */
-                            if (ret == SOCKET_ERROR) {
-                                cout <<  "shutdown() failed with error.\n";
-                                close(new_client.sockfd); return -4;
-                            } 
-                            close(new_client.sockfd);
+                            
+                            shutdown_connection(-1);
+                            
                             if(strstr(finalcmd, "--getout--") != finalcmd) {
                                 cout<<"\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255mShutting down PC in 5 seconds...\033[0m\n";
                                 SHELL_EXIT = system("sleep 5");
@@ -238,6 +253,12 @@ int main(int argc, char** argv) {
     client_type client = { INVALID_SOCKET, -1, "" };
     string message, sent_message = "";
     
+    /* Handling of SIGTERM if pc shuts down without terminating client side */
+    struct sigaction action;
+    memset(&action, 0, sizeof(action));
+    action.sa_handler = shutdown_connection;
+    sigaction(SIGTERM, &action, NULL);
+    
     /* Arguments */
     if (argc < 3) {
         cout <<  "Basic Usage: "<<argv[0]<<" [hostname] [port]\n";
@@ -273,6 +294,7 @@ int main(int argc, char** argv) {
     
     /* Opening socket */
     client.sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    MY_SOCKFD = client.sockfd;
     if (client.sockfd < 0) {
         cout <<  "ERROR opening socket\n";
         return -2;
@@ -345,15 +367,7 @@ int main(int argc, char** argv) {
     } else
         cout << client.received_message << endl;
     
-    /* Closing socket */ 
-    cout <<  "Closing socket...\n";
-    ret = shutdown(client.sockfd, SHUT_WR);
-    if (ret == SOCKET_ERROR) {
-        cout <<  "shutdown() failed with error.\n";
-        close(client.sockfd);
-        return -4;
-    }
-    close(client.sockfd);
+    shutdown_connection(-1); /* Send a negative value to indicate user has requested shutdown */
     
     if(!STDIN_ENABLED)
         SHELL_EXIT = system("rm -rf uploads; rm -rf downloads"); /* Cleanup after use */

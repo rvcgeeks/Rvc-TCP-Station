@@ -73,6 +73,11 @@ If you want to completely and remotely uninstall the client from remote pc, on R
 --shell-- @(victim uname) --bash-- init; (path to the script)/rvc-tcp-station -u
 ```
 So 'init' will cause the connection to terminate and immediately the uninstall is carried out
+You will never need to fear what if other user shuts down without leaving the group, will the threads 
+be damaged? will the network get destroyed? absolutely no as we have caught SIGTERM at the client side and 
+have gracefully closed the ongoing connection with proper --exit-- request to server. SIGTERM is sent by OS to 
+running applications to give them a chance to execute cleanup and their own exit routines .. we have just made use 
+of it. So by these all features of client a hidden remote control of deploy and forget type can be implemented. 
 
 How is hidden client implemented:
 
@@ -84,7 +89,10 @@ for user input (stdin) and just follows the server... This flag is mandatory els
 and whole system goes in race on exiting the terminal.
 after "disown" you can even close the client terminal but the program continues to interact with server at the background 
 as the terminal loses the authority over the application it will keep running until server sends --getout-- bash to the client
-This enables hidden PC remote control
+This enables hidden PC remote control.
+Atleast for now, server does not have this feature as it may be serving multiple clients and
+exit request is from client side. To do this we have to first close every other client connnected to it that too with proper exit
+requests and then leaving the port ... One can contribute in adding this feature however. 
 
 ## Instructions
 
