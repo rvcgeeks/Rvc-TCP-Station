@@ -1,5 +1,11 @@
 #!/bin/bash
-#created by @rvcgeeks____ @Pune , India
+# ___________________________________________________________
+# ____________<<<___#_R_V_C_G_E_E_K_S___>>>__________________
+# CREATED BY #RVCGEEKS @PUNE for more rvchavadekar@gmail.com
+#
+# #RVCGEEKS TCP STATION : rvc-tcp-station launcher
+# created on 12.05.2019
+#
 	
 	read_credenentials() {
 		echo "  Enter hostname / ip address of host to connect:"
@@ -12,7 +18,6 @@
 		echo "  Enter the username for this client"
 		read preset_uname
 	}
-	
 	
 	case $1 in 
 	-u)
