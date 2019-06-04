@@ -77,7 +77,7 @@ const  string cols[COLS] = {
     "\033[38;2;0;255;128m"
 };
 
-#define PACKET_SIZE 65535
+#define PACKET_SIZE 2048
 
 struct client_type {
     int id;
@@ -108,7 +108,7 @@ int process_client(
     bool is_uname_set = false;
     
     /* Session */
-    while (true) {
+    for (;;) {
         /* Update server time for every loop */
         time_t timer;
         char timestring[PACKET_SIZE], tempmsg[PACKET_SIZE] = "";
@@ -195,10 +195,9 @@ int process_client(
                     file_to_recieve.write(buffer,PACKET_SIZE);
                 } 
                 memset(buffer,0,PACKET_SIZE);
-                if(remainder !=0 ) {
-                    recv(new_client.sockfd, buffer, PACKET_SIZE, 0);
+                recv(new_client.sockfd, buffer, PACKET_SIZE, 0);
+                if(remainder !=0 )
                     file_to_recieve.write(buffer, remainder);
-                }
                 
                 /* Broadcast the upload message to the other clients */
                 string success = string("\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m") 
@@ -280,16 +279,19 @@ int process_client(
                 }
             } 
             
-            /* Send the response of shell to the sender */ 
+            /* revert the response of shell to the sender */ 
             if (strstr(tempmsg ,"--shellout--") == tempmsg) {
                 
-                 char finalout[PACKET_SIZE] = " Shell response from @";
-                 strcat(finalout, new_client.uname.c_str());
-                 strcat(finalout, " : \n");
-                 strcat(finalout, tempmsg + 12);
-                 cout<<finalout<<endl; 
-                 logfile<<finalout<<endl;
-                 send(client_array[shell_sender_client_id].sockfd, finalout, PACKET_SIZE, 0);
+                char finalout[PACKET_SIZE];
+                strcpy(finalout, new_client.uname.c_str());
+                strcat(finalout, "@");
+                strcat(finalout, new_client.ip_addr_str.c_str());
+                strcat(finalout, "   > ");
+                strcat(finalout, tempmsg + 12);
+                cout<<finalout; 
+                logfile<<finalout;
+                finalout[strlen(finalout) - 1] = 0;
+                send(client_array[shell_sender_client_id].sockfd, finalout, PACKET_SIZE, 0);
             }
             
             /* Check whether it is a pull request so after sending this request, client fires up for its regular upload procedure WITHOUT USERS CONCERN */ 
@@ -334,7 +336,8 @@ int process_client(
                         strcpy(errmsg, "--all-- represents everyone online ... this cant be your username!!\n Please enter a different username: ");
                         send(new_client.sockfd, errmsg, strlen(errmsg), 0);     /* --all-- is a username which represents everyone connected to server */
                         goto uname_exists;                                      /* any command w.r.t. --all-- implies on every online user */
-                    } for(int i = 0; i < MAX_CLIENTS; i++)
+                    } 
+                    for(int i = 0; i < MAX_CLIENTS; i++)
                         if(client_array[i].uname == string(tempmsg)){
                             strcpy(errmsg, "SORRY this username already exists!!\n Please enter a different username: ");
                             send(new_client.sockfd, errmsg, strlen(errmsg), 0);
@@ -362,7 +365,8 @@ int process_client(
                 /* Check if it is a shell response */
                 if(strstr(tempmsg ,"--shellout--") != tempmsg) {
                     cout << msg << endl; logfile << msg << endl;
-                } /* Broadcast the chat message to the other clients only when it is not any command */
+                } 
+                /* Broadcast the chat message to the other clients only when it is not any command */
                 if( strstr(tempmsg ,"--upload--") != tempmsg && 
                     strstr(tempmsg ,"--download--") != tempmsg && 
                     strstr(tempmsg ,"--shell--") != tempmsg && 
@@ -462,7 +466,7 @@ int main(int argc, char** argv) {
     client_len = sizeof(client_addr);
     
     /* Serve */
-    while (true) {
+    for (;;) {
         
         /* Accept new connection */
         int incoming = INVALID_SOCKET;
@@ -522,5 +526,5 @@ int main(int argc, char** argv) {
             close(client[temp_id].sockfd);
         }
     }
-    /* Unreachable code here as a server is infinite loop as it serves forever */
+    /* ** Unreachable code in this block as a server is infinite loop as it serves forever ** */
 }

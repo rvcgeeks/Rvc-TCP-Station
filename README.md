@@ -51,7 +51,9 @@ On any PC where you have to open the client,
 ```
 where --permit-shell-access flag is optional enabling any user to execute shell commands on your PC 
 and --preset-uname sets username without stdin in commandline itself it is also optional
---reconnect will make server connection automatically after 60 seconds even on exit.
+--reconnect will make server connection automatically after 60 seconds even on exit. This
+flag must be only given if --no-stdin is given i.e. you are intending to execute a hidden client.
+for best results on hidden client execute it as boot process described as the following...
  The order of flags donot matter at all .. application will understand it
 but specify the username after --preset-uname flag if given.
 
@@ -106,7 +108,8 @@ This enables hidden PC remote control.
 4) To execute a scell command on a user who permits one's shell access , use
    '--shell-- @[username |--all--] --bash-- [actual commandline to execute]'
    in the actual command if you give '--getout--' it will just terminate 
-   the client connection. If it fails you will get some error message. 
+   the client connection. If it fails you will get some error message.
+   But remember that only one user at a given time can send shell command! 
 5) The --pull-- command delibrately uploads a file from client side onto the 
    server. It will command the client program to upload prescribed file. 
    '--pull-- @[username] --file-- [accurate filename]' is its syntax. 
@@ -125,8 +128,8 @@ This enables hidden PC remote control.
 Launcher Script
 ![launcher.png](docs/launcher.png)
 
-Normal Chatting
-![chats-shell.png](docs/chats-shell.png)
+Multithreaded Remote Shell
+![multithreaded-rsh.png](docs/multithreaded-rsh.png)
 
 Upload and Download
 ![upload-download.png](docs/upload-download.png)

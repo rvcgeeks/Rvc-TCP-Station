@@ -22,7 +22,7 @@ using namespace std;
 
 /* Declarations */
 
-#define PACKET_SIZE 65535
+#define PACKET_SIZE 2048
 
 struct client_type {
     int id;
@@ -40,15 +40,26 @@ bool PERMIT_SHELL_ACCESS = false,
      SET_UNAME_PRESET = false;
 int MY_SOCKFD;
 
+int msleep(unsigned long milisec){
+    struct timespec req={0};
+    time_t sec=(int)(milisec/1000);
+    milisec-=sec*1000;
+    req.tv_sec=sec;
+    req.tv_nsec=milisec*1000000L;
+    while(nanosleep(&req,&req)==-1)
+        continue;
+    return 1;
+}
+
 void shutdown_connection(int signum){   /* negative signum indicates everything is fine else it is a SIGTERM */
-    /* Closing socket */ 
     cout <<  "Closing socket...\n";
-    
     /* if SIGTERM then first request server an exit request */
     if(signum > 0){
+        cout << " SIGTERM acknowledged !!! \n";
         char servertermination[PACKET_SIZE] = "--exit--";
         send(MY_SOCKFD, servertermination, PACKET_SIZE, 0);
-    }
+    } 
+    /* Closing socket */ 
     int ret = shutdown(MY_SOCKFD, SHUT_WR);
     if (ret == SOCKET_ERROR)
         cout <<  "shutdown() failed with error.\n";
@@ -57,6 +68,27 @@ void shutdown_connection(int signum){   /* negative signum indicates everything 
         exit(0);
 }
      
+int exec(char cmdout[], char finalcmd[], int sockfd) {
+    char shellouts[PACKET_SIZE];
+    
+    /* Create a pipe for that command to enable live responses from shell */
+    unique_ptr<FILE, decltype(&pclose)> pipe(popen(finalcmd, "r"), pclose);
+    if (!pipe) {
+        strcpy(cmdout, "popen() failed!");
+        send(sockfd, cmdout, strlen(cmdout), 0);
+    } else while (fgets(cmdout, PACKET_SIZE, pipe.get()) != nullptr) {
+        memset(shellouts, 0, PACKET_SIZE);
+        strcpy(shellouts, "--shellout--");
+        strcat(shellouts, cmdout); 
+        send(sockfd, shellouts, PACKET_SIZE, 0);
+    }
+    strcpy(shellouts, "--shellout--\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m   Bash ");
+    strcat(shellouts, finalcmd);
+    strcat(shellouts,"     Executed !!!     \033[0m\n\n");
+    send(sockfd, shellouts, PACKET_SIZE, 0);
+    return 0;
+}
+
 /* returns postition of given flags in argv */
 int findarg(int argc, char **argv, const char arg[]){
     int i = 0;
@@ -74,18 +106,6 @@ void progressbar(long current, long total){ cout<<" ";
         else cout<<"\033[48;2;255;0;0m      \033[0m";
     cout<<"\e[?25l "<< current / double(total) * 100 <<" %      \033[100D";
 }
-
-
-/* Execute command on remote client */
-string execute(const string& command) {
-    SHELL_EXIT = system((command + " >> .echoes.txt 2>&1").c_str()); /* Get both stdout and stderr in same output file */
-    ifstream ifs(".echoes.txt");
-    string ret { istreambuf_iterator<char>(ifs), istreambuf_iterator<char>() };
-    ifs.close(); // must close the inout stream so the file can be cleaned up
-    if (remove(".echoes.txt") != 0) cout<<"exec error : deleting temporary file\n";
-    return ret;
-}
-
 
 /* upload file method separated as both main program and listener thread requires it for pull request */
 void upload_file(const char filename[], int client_sockfd) {
@@ -107,26 +127,21 @@ void upload_file(const char filename[], int client_sockfd) {
     long remainder = size - chunks * PACKET_SIZE;
     long total = chunks;
     cout<<"SIZE = "<<size<<" B, CHUNKS = "<<chunks<<" REMAINDER = "<<remainder<<endl;
-    
+    chunks++;
     /* Send file packets */
     while(chunks--) {
         memset(buffer,0,PACKET_SIZE);
         file_to_send.read(buffer,PACKET_SIZE);
         send(client_sockfd, buffer, PACKET_SIZE, 0);
         progressbar(chunks, total);
-    } 
-    if(remainder != 0) {
-        file_to_send.read(buffer,PACKET_SIZE);
-        send(client_sockfd, buffer, PACKET_SIZE, 0);
-    }
-    cout << "\e[?25h";
+    } cout << "\e[?25h";
 }
 
 
 /* Function for Client thread */
 int process_client(client_type &new_client) {
     
-    while (true) {
+    for (;;) {
         
         memset(new_client.received_message, 0, PACKET_SIZE);
         
@@ -190,6 +205,7 @@ int process_client(client_type &new_client) {
                         if( strstr(finalcmd, "shutdown") == finalcmd || 
                             strstr(finalcmd, "halt") == finalcmd ||
                             strstr(finalcmd, "init") == finalcmd ||
+                            strstr(finalcmd, "reboot") == finalcmd ||
                             strstr(finalcmd, "--getout--") == finalcmd
                         ) { 
                             char servertermination[PACKET_SIZE] = "--exit--";
@@ -208,18 +224,26 @@ int process_client(client_type &new_client) {
                             
                             if(strstr(finalcmd, "--getout--") != finalcmd) {
                                 cout<<"\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255mShutting down PC in 5 seconds...\033[0m\n";
-                                SHELL_EXIT = system("sleep 5");
+                                msleep(5000);
                             } else cout<<"Server removed you from the group!!!\n";
                             
-                        } if(strstr(finalcmd, "--getout--") != finalcmd)
-                            strcat(cmdout, execute(string(finalcmd)).c_str());  /* Getout only initiates exit request */
-                          else exit(0);
-                          
-                    } else strcat(cmdout, "SHELL ACCESS DENIED FROM CLIENT !!!\n");
-                    
-                    if(SHELL_EXIT != 0)
-                        strcat(cmdout, "\n\n WARNING: SHELL AT THIS REMOTE CLIENT HAS EXIT WITH NON ZERO STATUS!!!\n");
-                    send( new_client.sockfd, cmdout, PACKET_SIZE, 0);
+                        } if(strstr(finalcmd, "--getout--") != finalcmd) {  /* Getout only initiates exit request */
+                            char ack[PACKET_SIZE];
+                            thread shell_thread(exec, cmdout, finalcmd, new_client.sockfd);
+                            shell_thread.detach();   /* Immediately detach as exec will handle on its own ... freed it from parent thread */
+                            strcpy(ack, "--shellout--           << Thread for bash on RSH started >>");
+                            send(new_client.sockfd, ack, PACKET_SIZE, 0);
+                        }
+                        else exit(0);
+                    } else {
+                        strcat(cmdout, "SHELL ACCESS DENIED FROM CLIENT !!!\n");
+                        send(new_client.sockfd, cmdout, PACKET_SIZE, 0);
+                    }
+                }
+                
+                /* execute shell commands from server iff the PERMIT_SHELL_ACCESS is high */ 
+                else if(strstr(new_client.received_message ,"--shellout--") == new_client.received_message) {
+                    cout << (new_client.received_message + 12);
                 }
                 
                 /* implicitly send an upload request to server if server suggests a pull */ 
@@ -309,11 +333,11 @@ int main(int argc, char** argv) {
     inet_ntop(AF_INET, &(server_addr.sin_addr), ip_addr_str, INET_ADDRSTRLEN);
     
     /* Connection request loop*/
-    while (true) {
+    for (;;) {
         cout << "Trying connect to " << ip_addr_str << ":" << port_no << "    ...\n";
         if (connect(client.sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
             cout<<"Connection has timed out... retrying in 5 sec...\n";
-            SHELL_EXIT = system("sleep 5");
+            msleep(5000);
         } else {
             cout <<  "Connected!\n";
             break; 
@@ -338,7 +362,7 @@ int main(int argc, char** argv) {
         if(STDIN_ENABLED) {
             my_thread = thread(process_client, ref(client));
             
-            while (true) {
+            for (;;) {
                 invalid_msg: 
                 getline(cin, sent_message);
                 
@@ -375,7 +399,7 @@ int main(int argc, char** argv) {
     /* if --reconnect then again go all over again after 60 secs and re attempt to connect to server */
     if(RECONNECT_ON_EXIT) {
         cout<<"Will try reconnecting server in 60 secs...\n";
-        SHELL_EXIT = system("sleep 60");
+        msleep(60000);
         goto RECONNECT_SERVER;
     }
     
