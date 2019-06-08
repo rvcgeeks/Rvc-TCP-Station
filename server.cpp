@@ -449,7 +449,6 @@ int process_client(
                 
                 if(FATAL_TERMINATE)  /* Directly exit if fatal terminate */
                     if(is_client_array_empty()) {
-                        self_thread.detach();
                         cout << "\n\n TERMINATING SERVER ON FATAL REQUEST ...\n\n";
                         exit(0);
                     }
