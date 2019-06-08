@@ -1,9 +1,9 @@
 # Rvc TCP Station
 
 An all in one TCP server client system in Linux
-1) Multi user TCP chat
-2) RSH (Remote Shell control)
-3) FTP (File transfer protocol)
+1) Multi user TCP/IP chat
+2) Multithreaded RSH (Remote Shell control)
+3) Checksum safe FTP (File transfer protocol)
 
 ## Internal Architecture
 
@@ -15,9 +15,13 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Prerequisites
 
-A good Linux OS
-It is a native C++ application so basic C++ libraries 
-and multi threading support (pthread) for compilation, basic g++ compiler
+However this project is built on Ubuntu 16.04 LTS so
+the release for this project can work on any 64 bit Debian distributions.
+However we are planning to create a configuration for Windows in further releases
+
+On the OS you need:
+1) gnu make
+2) g++ >= 5.4.0 with libpthread.so
 
 ### Compilation
 
@@ -52,7 +56,7 @@ On any PC where you have to open the client,
 where --permit-shell-access flag is optional enabling any user to execute shell commands on your PC 
 and --preset-uname sets username without stdin in commandline itself it is also optional
 --reconnect will make server connection automatically after 60 seconds even on exit. This
-flag must be only given if --no-stdin is given i.e. you are intending to execute a hidden client.
+flag must be only given if --no-console is given i.e. you are intending to execute a hidden client.
 for best results on hidden client execute it as boot process described as the following...
  The order of flags donot matter at all .. application will understand it
 but specify the username after --preset-uname flag if given.
@@ -86,9 +90,7 @@ requests and then leaving the port ... One can contribute in adding this feature
 
 How is hidden client implemented:
 
-In this script all the stdout of the rvc-tcp-client is sent to /dev/null
-In Linux, /dev/null is a special device le which writes-off (gets rid of) all data written to it, in the command above, output (stdout) 
-is sent to /dev/null. The --no-stdin flag tells the client not to take any input message instead to execute the server
+The --no-console flag tells the client not to take any input message instead to execute the server
 listening process in main thread itself instead of creating a separate thread for that. this fixes the cpu utilization for waiting 
 for user input (stdin) and just follows the server... This flag is mandatory else the stdin (tty input) process suspends
 and whole system goes in race on exiting the terminal.
@@ -122,6 +124,19 @@ This enables hidden PC remote control.
    terminate your connection.
 
 ![commands.png](docs/commands.png)
+
+## Signal handling
+A) Server side:
+   Server ignores following signals if any client is online, else terminated.
+      SIGINT  (ctrl + 'c'),  SIGTSTP (ctrl + 'z'),  SIGQUIT (ctrl + '\')
+   Server closes all active connections and threads and terminates on following signals.
+      SIGKILL,               SIGABRT,               SIGTERM
+
+B) Client side
+   Client ignores the following signals by default.
+      SIGINT  (ctrl + 'c'),  SIGTSTP (ctrl + 'z'),  SIGQUIT (ctrl + '\')
+   Client closes connection with server and listner thread and terminates on following signals.
+      SIGKILL,               SIGABRT,               SIGTERM
 
 ## Operation Screenshots
 

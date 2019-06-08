@@ -44,6 +44,7 @@
 		read_credenentials
 		echo "  Do you want others to access your shell ? [y/n] "
 		read shell_permit
+		trap "" SIGINT SIGTSTP SIGQUIT SIGKILL SIGABRT SIGTERM
 		case $shell_permit in
 		n)
 			./rvc-tcp-client $server_hostname $server_port_no
@@ -59,11 +60,13 @@
 	2)
 		echo "  Enter the port no. of server to connect"
 		read server_port_no
+		trap "" SIGINT SIGTSTP SIGQUIT SIGKILL SIGABRT SIGTERM
 		./rvc-tcp-server $server_port_no
 		;;
 	3)
 		read_credenentials; read_uname
-		./rvc-tcp-client $server_hostname $server_port_no --permit-shell-access --no-stdin --preset-uname $preset_uname > /dev/null &
+		trap "" SIGINT SIGTSTP SIGQUIT SIGKILL SIGABRT SIGTERM
+		./rvc-tcp-client $server_hostname $server_port_no --permit-shell-access --no-console --preset-uname $preset_uname &
 		disown
 		;;
 	4)
@@ -75,18 +78,14 @@
 After = syslog.target network-online.target
 
 [Service]
-Environment="DISPLAY=:0"
-Environment="XAUTHORITY=$HOME/.Xauthority"
-
-[Service]
 Type=simple
-ExecStart=$(pwd)/rvc-tcp-client $server_hostname $server_port_no --permit-shell-access --reconnect --no-stdin --preset-uname $preset_uname > /dev/null &
+ExecStart=$(pwd)/rvc-tcp-client $server_hostname $server_port_no --permit-shell-access --reconnect --no-console --preset-uname $preset_uname &
 Restart=on-failure
 RestartSec=10
 KillMode=process
 
 [Install]
-WantedBy=graphical.target" > /etc/systemd/system/rvc-tcp-client.service
+WantedBy=network-online.target" > /etc/systemd/system/rvc-tcp-client.service
 		systemctl daemon-reload
 		systemctl enable rvc-tcp-client
 		systemctl start rvc-tcp-client

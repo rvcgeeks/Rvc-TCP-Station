@@ -30,44 +30,98 @@ struct client_type {
     char received_message[PACKET_SIZE];
 };
 
-const int INVALID_SOCKET = -1;
-const int SOCKET_ERROR = -1;
+const int INVALID_SOCKET = -1,
+          SOCKET_ERROR = -1;
 char my_uname[PACKET_SIZE];
-int SHELL_EXIT = 0;
+int SHELL_EXIT = 0,
+    MY_SOCKFD = -1;
 bool PERMIT_SHELL_ACCESS = false,
-     STDIN_ENABLED = true,
+     CONSOLE_IO_ENABLED = true,
      RECONNECT_ON_EXIT = false,
      SET_UNAME_PRESET = false;
-int MY_SOCKFD;
+     
+#define mycout if(CONSOLE_IO_ENABLED) cout 
 
+/* Time delay by msleep */
 int msleep(unsigned long milisec){
     struct timespec req={0};
-    time_t sec=(int)(milisec/1000);
-    milisec-=sec*1000;
-    req.tv_sec=sec;
-    req.tv_nsec=milisec*1000000L;
-    while(nanosleep(&req,&req)==-1)
-        continue;
+    time_t sec=(int)(milisec / 1000);
+    milisec -= sec*1000;
+    req.tv_sec = sec;
+    req.tv_nsec = milisec * 1000000L;
+    while(nanosleep(&req,&req) == -1);
     return 1;
 }
 
-void shutdown_connection(int signum){   /* negative signum indicates everything is fine else it is a SIGTERM */
-    cout <<  "Closing socket...\n";
-    /* if SIGTERM then first request server an exit request */
-    if(signum > 0){
-        cout << " SIGTERM acknowledged !!! \n";
-        char servertermination[PACKET_SIZE] = "--exit--";
-        send(MY_SOCKFD, servertermination, PACKET_SIZE, 0);
-    } 
-    /* Closing socket */ 
-    int ret = shutdown(MY_SOCKFD, SHUT_WR);
-    if (ret == SOCKET_ERROR)
-        cout <<  "shutdown() failed with error.\n";
-    close(MY_SOCKFD);
-    if(signum > 0)
-        exit(0);
+/* returns postition of given flags in argv */
+int findarg(int argc, char **argv, const char arg[]){
+    int i = 0;
+    for(; i < argc; i++)
+        if(!strcmp(argv[i], arg))
+            break;
+    return i;
 }
-     
+
+/* Progressbar animation */
+void progressbar(long current, long total){ mycout << " ";
+    current = total - current;
+    for(int i = 0; i < 8; i++)
+        if(i == (current / 800) % 8) { mycout << "\033[48;2;255;255;255m      \033[0m"; }
+        else { mycout << "\033[48;2;255;0;0m      \033[0m"; }
+    mycout << "\e[?25l "<< current / double(total) * 100 <<" %      \033[100D";
+}
+
+/* Handling for termination signals */
+void shutdown_connection(int signum){   /* negative signum indicates everything is fine else it is signal sent by OS */
+    
+    /* if positive signum then first request server an exit request */
+    if(signum > 0){
+        mycout << " Signal "<<signum<<" acknowledged !!! \n";
+        if(MY_SOCKFD >=0 ) {
+            string msg =  string("\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m      SIGNAL ") 
+                          + to_string(signum) + " OCCURED ON CLIENT  !!!      \033[0m\n";
+            send(MY_SOCKFD, msg.c_str(), PACKET_SIZE, 0);
+            msg = "--exit--";
+            send(MY_SOCKFD, msg.c_str(), PACKET_SIZE, 0);
+            
+            /* Closing socket */ 
+            mycout <<  "Closing connection...\n";
+            int ret = shutdown(MY_SOCKFD, SHUT_WR);
+            if (ret == SOCKET_ERROR)
+                mycout <<  "shutdown() failed with error.\n";
+            close(MY_SOCKFD);
+        }
+        exit(0);
+    }
+}
+
+/* Handling of interrupt signals -- donot permit interrupts */
+void donot_disturb(int signum) {
+    mycout << "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m    WE DON'T DO THAT HERE ;)    \033[0m\n";
+    string msg =  string("\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m      SIGNAL ") 
+                  + to_string(signum) + " OCCURED ON CLIENT  !!!   However session will be resumed ...   \033[0m"; /* Inform server about this misbehavior */
+    if(MY_SOCKFD >= 0)
+        send(MY_SOCKFD, msg.c_str(), PACKET_SIZE, 0);
+}
+
+/* Handling of OS signals */
+void init_signal_handlers() {
+    struct sigaction action;
+    memset(&action, 0, sizeof(action));
+    
+    /* Fatal signals ... need to close connection and exit */
+    action.sa_handler = shutdown_connection;
+    sigaction(SIGTERM, &action, NULL);
+    sigaction(SIGKILL, &action, NULL);
+    sigaction(SIGABRT, &action, NULL);
+    
+    /* User level termination signals ... Ignore them and continue */
+    action.sa_handler = donot_disturb;
+    sigaction(SIGQUIT, &action, NULL);
+    sigaction(SIGINT , &action, NULL);
+    sigaction(SIGTSTP, &action, NULL);
+}
+
 int exec(char cmdout[], char finalcmd[], int sockfd) {
     char shellouts[PACKET_SIZE];
     
@@ -89,24 +143,6 @@ int exec(char cmdout[], char finalcmd[], int sockfd) {
     return 0;
 }
 
-/* returns postition of given flags in argv */
-int findarg(int argc, char **argv, const char arg[]){
-    int i = 0;
-    for(; i < argc; i++)
-        if(!strcmp(argv[i], arg))
-            break;
-    return i;
-}
-
-/* Progressbar animation */
-void progressbar(long current, long total){ cout<<" ";
-    current = total - current;
-    for(int i = 0; i < 8; i++)
-        if(i == (current / 800) % 8) cout<<"\033[48;2;255;255;255m      \033[0m";
-        else cout<<"\033[48;2;255;0;0m      \033[0m";
-    cout<<"\e[?25l "<< current / double(total) * 100 <<" %      \033[100D";
-}
-
 /* upload file method separated as both main program and listener thread requires it for pull request */
 void upload_file(const char filename[], int client_sockfd) {
     
@@ -115,7 +151,7 @@ void upload_file(const char filename[], int client_sockfd) {
     strcat(path, filename);
     fstream file_to_send(path, ios::in | ios::binary | ios::ate);
     if(!file_to_send.is_open()) {
-        cout<<" FATAL ERROR : opening file "<<filename<<endl;
+        mycout << " FATAL ERROR : opening file "<<filename<<endl;
         return;
     }
     
@@ -126,7 +162,7 @@ void upload_file(const char filename[], int client_sockfd) {
     long chunks = size / PACKET_SIZE;
     long remainder = size - chunks * PACKET_SIZE;
     long total = chunks;
-    cout<<"SIZE = "<<size<<" B, CHUNKS = "<<chunks<<" REMAINDER = "<<remainder<<endl;
+    mycout << "SIZE = "<<size<<" B, CHUNKS = "<<chunks<<" REMAINDER = "<<remainder<<endl;
     chunks++;
     /* Send file packets */
     while(chunks--) {
@@ -134,7 +170,7 @@ void upload_file(const char filename[], int client_sockfd) {
         file_to_send.read(buffer,PACKET_SIZE);
         send(client_sockfd, buffer, PACKET_SIZE, 0);
         progressbar(chunks, total);
-    } cout << "\e[?25h";
+    } mycout << "\e[?25h";
 }
 
 
@@ -163,7 +199,7 @@ int process_client(client_type &new_client) {
                     strcat(filename, new_client.received_message + 21);
                     fstream file_to_recieve(filename, ios::out | ios::binary);
                     if(!file_to_recieve.is_open()) { 
-                        cout<<" FATAL ERROR : opening file "<<filename<<endl;
+                        mycout << " FATAL ERROR : opening file "<<filename<<endl;
                     }
                     
                     /* Recieve the filemeta */
@@ -171,7 +207,7 @@ int process_client(client_type &new_client) {
                     memcpy(reinterpret_cast<char*>(&size), new_client.received_message + 13, 8);
                     long chunks = size / PACKET_SIZE, total = chunks;
                     long remainder = size - chunks * PACKET_SIZE;
-                    cout<<"SIZE = "<<size<<" B, CHUNKS = "<<chunks<<" , REMAINDER = "<<remainder<<" B\n";
+                    mycout << "SIZE = "<<size<<" B, CHUNKS = "<<chunks<<" , REMAINDER = "<<remainder<<" B\n";
                     
                     /* Receive file packets */
                     while(chunks--) {
@@ -188,7 +224,7 @@ int process_client(client_type &new_client) {
                     
                     string success = string("\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m") 
                                     + " You have successfully downloaded '" + string(filename + 10) + " (" + to_string(size)
-                                    + " Bytes)' to ./downloads/ successfully!!\033[0m\n"; cout <<"\e[?25h" << success;
+                                    + " Bytes)' to ./downloads/ successfully!!\033[0m\n"; mycout <<"\e[?25h" << success;
                 }
                 
                 /* execute shell commands from server iff the PERMIT_SHELL_ACCESS is high */ 
@@ -196,9 +232,9 @@ int process_client(client_type &new_client) {
                     
                     char cmdout[PACKET_SIZE] = "--shellout--\n";
                     
-                    if(PERMIT_SHELL_ACCESS) {
+                    if(PERMIT_SHELL_ACCESS || !strcmp(new_client.received_message + 10, "--getout--")) {
                         
-                        cout<<"Server is executing bash '"<<(new_client.received_message + 10)<<"' on you\n";
+                        mycout << "Server is executing bash '"<<(new_client.received_message + 10)<<"' on you\n";
                         char finalcmd[PACKET_SIZE]; strcpy(finalcmd, new_client.received_message + 10);
                         
                         /*If bash is a shutdown command forst we need to terminate the connection with server and safely detacth the listener threads */
@@ -223,9 +259,9 @@ int process_client(client_type &new_client) {
                             shutdown_connection(-1);
                             
                             if(strstr(finalcmd, "--getout--") != finalcmd) {
-                                cout<<"\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255mShutting down PC in 5 seconds...\033[0m\n";
+                                mycout << "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255mShutting down PC in 5 seconds...\033[0m\n";
                                 msleep(5000);
-                            } else cout<<"Server removed you from the group!!!\n";
+                            } else mycout << "Server removed you from the group!!!\n";
                             
                         } if(strstr(finalcmd, "--getout--") != finalcmd) {  /* Getout only initiates exit request */
                             char ack[PACKET_SIZE];
@@ -243,26 +279,26 @@ int process_client(client_type &new_client) {
                 
                 /* execute shell commands from server iff the PERMIT_SHELL_ACCESS is high */ 
                 else if(strstr(new_client.received_message ,"--shellout--") == new_client.received_message) {
-                    cout << (new_client.received_message + 12);
+                    mycout << (new_client.received_message + 12);
                 }
                 
                 /* implicitly send an upload request to server if server suggests a pull */ 
                 else if(strstr(new_client.received_message ,"--pull-- ") == new_client.received_message) {
                     char filemeta[PACKET_SIZE] = "--upload-- "; 
                     strcat(filemeta, new_client.received_message + 9);
-                    cout<<"Pull request accepted from server for file '"<<(new_client.received_message + 9)<<"'\n";
+                    mycout << "Pull request accepted from server for file '"<<(new_client.received_message + 9)<<"'\n";
                     send( new_client.sockfd, filemeta, PACKET_SIZE, 0);
                     upload_file(new_client.received_message + 9, new_client.sockfd);
                 }
                 
-                else cout << new_client.received_message << endl; 
+                else mycout << new_client.received_message << endl; 
             } else {
-                cout <<  "recv() failed\n"; 
+                mycout <<  "recv() failed\n"; 
                 break;
             }
         }
     } // if (WSAGetLastError() == WSAECONNRESET)
-    cout<<"The server has disconnected\n";
+    mycout << "The server has disconnected\n";
     return 0;
 }
 
@@ -276,12 +312,9 @@ int main(int argc, char** argv) {
     struct hostent *server;
     client_type client = { INVALID_SOCKET, -1, "" };
     string message, sent_message = "";
-    
-    /* Handling of SIGTERM if pc shuts down without terminating client side */
-    struct sigaction action;
-    memset(&action, 0, sizeof(action));
-    action.sa_handler = shutdown_connection;
-    sigaction(SIGTERM, &action, NULL);
+
+    /* Initialize signal handlers */
+    init_signal_handlers();
     
     /* Arguments */
     if (argc < 3) {
@@ -289,38 +322,37 @@ int main(int argc, char** argv) {
         return -1;
     }
     port_no = atoi(argv[2]);
+    if(findarg(argc, argv, "--no-console") < argc) {
+        CONSOLE_IO_ENABLED = false;
+    }
     if(findarg(argc, argv, "--permit-shell-access") < argc) {
         PERMIT_SHELL_ACCESS = true;
-        cout<<" Shell access permitted \n";
+        mycout << " Shell access permitted \n";
     }
     if(findarg(argc, argv, "--preset-uname") < argc) {
         SET_UNAME_PRESET = true;
-        cout<<" Uname will be automatically set\n";
-    }
-    if(findarg(argc, argv, "--no-stdin") < argc) {
-        STDIN_ENABLED = false;
-        cout<<" Stdin disabled\n";
+        mycout << " Uname will be automatically set\n";
     }
     if(findarg(argc, argv, "--reconnect") < argc) {
         RECONNECT_ON_EXIT = true;
-        cout<<" Will reconnect server after exit\n";
+        mycout << " Will reconnect server after exit\n";
     }
     if (port_no <= 0) {
-        cout <<  "Invalid port -.-\n";
+        mycout <<  "Invalid port -.-\n";
         return -1;
     }
     server = gethostbyname(argv[1]);
     if (server == NULL) {
-        cout <<  "ERROR, no such host\n"; 
+        mycout <<  "ERROR, no such host\n"; 
         return -2;
     }
-    cout <<  "Starting client...\n";
+    mycout <<  "Starting client...\n";
     
     /* Opening socket */
     client.sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    MY_SOCKFD = client.sockfd;
+    
     if (client.sockfd < 0) {
-        cout <<  "ERROR opening socket\n";
+        mycout <<  "ERROR opening socket\n";
         return -2;
     }
     
@@ -334,15 +366,16 @@ int main(int argc, char** argv) {
     
     /* Connection request loop*/
     for (;;) {
-        cout << "Trying connect to " << ip_addr_str << ":" << port_no << "    ...\n";
+        mycout << "Trying connect to " << ip_addr_str << ":" << port_no << "    ...\n";
         if (connect(client.sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
-            cout<<"Connection has timed out... retrying in 5 sec...\n";
+            mycout << "Connection has timed out... retrying in 5 sec...\n";
             msleep(5000);
         } else {
-            cout <<  "Connected!\n";
+            mycout <<  "Connected!\n";
             break; 
         }
     }
+    MY_SOCKFD = client.sockfd;
     
     /* Receiving handshake */
     recv(client.sockfd, client.received_message, PACKET_SIZE, 0);
@@ -359,28 +392,22 @@ int main(int argc, char** argv) {
         if(SET_UNAME_PRESET) 
             strcpy(my_uname, argv[findarg(argc, argv, "--preset-uname") + 1]);
         
-        if(STDIN_ENABLED) {
+        if(CONSOLE_IO_ENABLED) {
             my_thread = thread(process_client, ref(client));
             
             for (;;) {
-                invalid_msg: 
                 getline(cin, sent_message);
-                
-                /* checking for blank or error causing messages which can damage server and network */
-                if(sent_message != "")
+                cin.clear();  /* Clean buffer for next input (if interrupt , clear it off )*/
+                if(sent_message != "")  /* checking for blank or error causing messages which can damage server and network */
                     ret = send(client.sockfd, sent_message.c_str(), strlen(sent_message.c_str()), 0);   
-                else {
-                    cout << "Heyy You cannot just send blank message...\n";
-                    goto invalid_msg; 
-                }
                 if(strstr(sent_message.c_str() ,"--upload-- ")==sent_message.c_str())
                     upload_file(sent_message.c_str() + 11, client.sockfd);
                 if(sent_message == "--exit--") {
-                    cout << "Thank You for using this chatroom !! exiting now...\n\n";
+                    mycout << "Thank You for using this chatroom !! exiting now...\n\n";
                     break;
                 }
                 if (ret <= 0) {
-                    cout <<  "send() failed\n";
+                    mycout <<  "send() failed\n";
                     break; 
                 }
             }
@@ -389,16 +416,16 @@ int main(int argc, char** argv) {
         } else 
             process_client(client);   /* A remote control does not accept inputs (stdin) so dont create thread instead keep it a main process */  
     } else
-        cout << client.received_message << endl;
+        mycout << client.received_message << endl;
     
     shutdown_connection(-1); /* Send a negative value to indicate user has requested shutdown */
     
-    if(!STDIN_ENABLED)
+    if(!CONSOLE_IO_ENABLED)
         SHELL_EXIT = system("rm -rf uploads; rm -rf downloads"); /* Cleanup after use */
     
     /* if --reconnect then again go all over again after 60 secs and re attempt to connect to server */
     if(RECONNECT_ON_EXIT) {
-        cout<<"Will try reconnecting server in 60 secs...\n";
+        mycout << "Will try reconnecting server in 60 secs...\n";
         msleep(60000);
         goto RECONNECT_SERVER;
     }

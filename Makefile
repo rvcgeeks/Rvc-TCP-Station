@@ -6,8 +6,8 @@
 # created on 12.05.2019
 #
 	CXXFLAGS   = -Os -Wall -pipe -pthread -std=gnu++11
-	LDFLAGS    = -ffunction-sections -fno-rtti -fdata-sections -fno-common -fno-builtin -Wl,--gc-sections 
-	STRIPFLAGS = -s -R .comment -R .gnu.version -R .note.*
+	LDFLAGS    = -ffunction-sections -fno-rtti -fdata-sections -fno-common -fno-builtin -flto -Wl,--gc-sections 
+	STRIPFLAGS = --strip-all --discard-all -R .comment -R .gnu.version -R .note.*
 
 all: server client pack
 
