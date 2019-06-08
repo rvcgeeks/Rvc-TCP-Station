@@ -132,16 +132,16 @@ This enables hidden PC remote control.
 2) SIGTSTP (ctrl + 'z')
 3) SIGQUIT (ctrl + '\\')
 <br>
-Server ignores following signals if any client is online, else terminated.<br>
-Client ignores the following signals by default.
+Server ignores above signals if any client is online, else terminated.<br>
+Client ignores above signals by default.
 
 ### Fatal termination signals:
 1) SIGKILL
 2) SIGABRT
 3) SIGTERM
 <br>
-Server closes all active connections and threads and terminates on following signals.<br>
-Client closes connection with server and listner thread and terminates on following signals.
+Server closes all active connections and threads and terminates on above signals.<br>
+Client closes connection with server and listner thread and terminates on above signals.
 
 ## Operation Screenshots
 
