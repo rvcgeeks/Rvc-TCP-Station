@@ -126,20 +126,20 @@ This enables hidden PC remote control.
 ![commands.png](docs/commands.png)
 
 ## Signal handling
+
 # User level signals:
 1) SIGINT  (ctrl + 'c')
 2) SIGTSTP (ctrl + 'z')
 3) SIGQUIT (ctrl + '\\')
 Server ignores following signals if any client is online, else terminated.<br>
-Client ignores the following signals by default.<br>
-<br>
+Client ignores the following signals by default.
+
 # Fatal termination signals:
 1) SIGKILL
 2) SIGABRT
 3) SIGTERM
 Server closes all active connections and threads and terminates on following signals.<br>
-Client closes connection with server and listner thread and terminates on following signals.<br>
-<br>
+Client closes connection with server and listner thread and terminates on following signals.
 
 ## Operation Screenshots
 
