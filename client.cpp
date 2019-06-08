@@ -75,24 +75,23 @@ void progressbar(long current, long total){ mycout << " ";
 void shutdown_connection(int signum){   /* negative signum indicates everything is fine else it is signal sent by OS */
     
     /* if positive signum then first request server an exit request */
-    if(signum > 0){
-        mycout << " Signal "<<signum<<" acknowledged !!! \n";
-        if(MY_SOCKFD >=0 ) {
-            string msg =  string("\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m      SIGNAL ") 
-                          + to_string(signum) + " OCCURED ON CLIENT  !!!      \033[0m\n";
-            send(MY_SOCKFD, msg.c_str(), PACKET_SIZE, 0);
-            msg = "--exit--";
-            send(MY_SOCKFD, msg.c_str(), PACKET_SIZE, 0);
+    mycout << " Signal "<<signum<<" acknowledged !!! \n";
+    if(MY_SOCKFD >=0 ) {
+        string msg =  string("\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m      SIGNAL ") 
+                      + to_string(signum) + " OCCURED ON CLIENT  !!!      \033[0m\n";
+        send(MY_SOCKFD, msg.c_str(), PACKET_SIZE, 0);
+        msg = "--exit--";
+        send(MY_SOCKFD, msg.c_str(), PACKET_SIZE, 0);
             
-            /* Closing socket */ 
-            mycout <<  "Closing connection...\n";
-            int ret = shutdown(MY_SOCKFD, SHUT_WR);
-            if (ret == SOCKET_ERROR)
-                mycout <<  "shutdown() failed with error.\n";
-            close(MY_SOCKFD);
-        }
-        exit(0);
+        /* Closing socket */ 
+        mycout <<  "Closing connection...\n";
+        int ret = shutdown(MY_SOCKFD, SHUT_WR);
+        if (ret == SOCKET_ERROR)
+            mycout <<  "shutdown() failed with error.\n";
+        close(MY_SOCKFD);
     }
+    if(signum > 0)
+        exit(0);
 }
 
 /* Handling of interrupt signals -- donot permit interrupts */
