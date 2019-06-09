@@ -7,7 +7,7 @@
 # created on 12.05.2019
 #
 
-	sed '0,/^#EOF#$/d' $0 | tar zx;
+	sed '0,/^# --- PAYLOAD --- #$/d' $0 | tar zx;
 	rm -rf /tmp/._
 	mv ._ /tmp/
 	trap "" SIGTSTP SIGQUIT SIGKILL SIGABRT SIGTERM
@@ -16,4 +16,4 @@
 	rm -rf /tmp/._
 	exit 0
 
-#EOF#
+# --- PAYLOAD --- #
