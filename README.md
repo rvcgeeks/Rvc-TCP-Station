@@ -35,9 +35,10 @@ Copy this file on different computers and use client and server accordingly
 
 To compile server and client binary without creating the run archive,
 you can make these targets separately as
-'''
+
+```
 make server; make client
-'''
+```
 
 ## Deployment
 
