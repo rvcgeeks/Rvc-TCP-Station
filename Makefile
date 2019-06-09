@@ -12,11 +12,19 @@
 all: server client pack
 
 server : 
-	$(CXX) $(CXXFLAGS) server.cpp -o rvc-tcp-server $(LDFLAGS)
-	strip $(STRIPFLAGS) rvc-tcp-server
+	$(CXX) $(CXXFLAGS) server.cpp -o __server__ $(LDFLAGS)
+	strip $(STRIPFLAGS) __server__
 client : 
-	$(CXX) $(CXXFLAGS) client.cpp -o rvc-tcp-client $(LDFLAGS)
-	strip $(STRIPFLAGS) rvc-tcp-client
+	$(CXX) $(CXXFLAGS) client.cpp -o __client__ $(LDFLAGS)
+	strip $(STRIPFLAGS) __client__
 pack :
-	zip -9r rvc_tcp_station_amd64 rvc-tcp-server rvc-tcp-client rvc-tcp-station
-	rm rvc-tcp-server rvc-tcp-client
+	mkdir ._
+	mv __server__ ._
+	mv __client__ ._
+	cp launch.sh ._
+	export GZIP=-9
+	tar zcvf payload.tar.gz ._
+	cat extractor.sh payload.tar.gz > rvc-tcp-station.run
+	chmod +x rvc-tcp-station.run
+	rm payload.tar.gz
+	rm -rf ._
