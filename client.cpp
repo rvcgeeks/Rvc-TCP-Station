@@ -30,7 +30,7 @@ struct client_type {
     char received_message[PACKET_SIZE];
 };
 
-const int INVALID_SOCKET = -1,
+const int EMPTY_SOCKET = -1,
           SOCKET_ERROR = -1;
 char my_uname[PACKET_SIZE];
 int SHELL_EXIT = 0,
@@ -122,7 +122,7 @@ void init_signal_handlers() {
     sigaction(SIGTSTP, &action, NULL);
 }
 
-int exec(char cmdout[], char finalcmd[], int sockfd) {
+void exec(char cmdout[],const char finalcmd[], int sockfd) {
     char shellouts[PACKET_SIZE];
     
     /* Create a pipe for that command to enable live responses from shell */
@@ -130,17 +130,23 @@ int exec(char cmdout[], char finalcmd[], int sockfd) {
     if (!pipe) {
         strcpy(cmdout, "popen() failed!");
         send(sockfd, cmdout, strlen(cmdout), 0);
-    } else while (fgets(cmdout, PACKET_SIZE, pipe.get()) != nullptr) {
+    } else while (fgets(cmdout, PACKET_SIZE, pipe.get()) != NULL) {
         memset(shellouts, 0, PACKET_SIZE);
-        strcpy(shellouts, "--shellout--");
-        strcat(shellouts, cmdout); 
-        send(sockfd, shellouts, PACKET_SIZE, 0);
+        if(sockfd == EMPTY_SOCKET) {
+            mycout << "shellout @--self--   > " << cmdout <<endl;
+        } else {
+            strcpy(shellouts, "--shellout--");
+            strcat(shellouts, cmdout); 
+            send(sockfd, shellouts, PACKET_SIZE, 0);
+        }
     }
     strcpy(shellouts, "--shellout--\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m   Bash ");
     strcat(shellouts, finalcmd);
     strcat(shellouts,"     Executed !!!     \033[0m\n\n");
-    send(sockfd, shellouts, PACKET_SIZE, 0);
-    return 0;
+    if(sockfd == EMPTY_SOCKET) {
+        mycout << (shellouts + 12);
+    } else
+        send(sockfd, shellouts, PACKET_SIZE, 0);
 }
 
 /* upload file method separated as both main program and listener thread requires it for pull request */
@@ -149,14 +155,16 @@ void upload_file(const char filename[], int client_sockfd) {
     /* Open the in file */
     char path[PACKET_SIZE] = "uploads/", buffer[PACKET_SIZE];
     strcat(path, filename);
+    long size = -1;
     fstream file_to_send(path, ios::in | ios::binary | ios::ate);
     if(!file_to_send.is_open()) {
         mycout << " FATAL ERROR : opening file "<<filename<<endl;
+        send(client_sockfd, reinterpret_cast<char*>(&size), 8, 0); /* -ve size indicates file not successfully opened at client side */
         return;
     }
     
     /* Calculate size and send filemeta */
-    long size = file_to_send.tellg();
+    size = file_to_send.tellg();
     send(client_sockfd, reinterpret_cast<char*>(&size), 8, 0);
     file_to_send.seekg(0);
     long chunks = size / PACKET_SIZE;
@@ -200,6 +208,7 @@ int process_client(client_type &new_client) {
                     fstream file_to_recieve(filename, ios::out | ios::binary);
                     if(!file_to_recieve.is_open()) { 
                         mycout << " FATAL ERROR : opening file "<<filename<<endl;
+                        continue;
                     }
                     
                     /* Recieve the filemeta */
@@ -267,7 +276,7 @@ int process_client(client_type &new_client) {
                             char ack[PACKET_SIZE];
                             thread shell_thread(exec, cmdout, finalcmd, new_client.sockfd);
                             shell_thread.detach();   /* Immediately detach as exec will handle on its own ... freed it from parent thread */
-                            strcpy(ack, "--shellout--           << Thread for bash on RSH started >>");
+                            strcpy(ack, "--shellout--           << Thread for bash on RSH started >>  ");
                             send(new_client.sockfd, ack, PACKET_SIZE, 0);
                         }
                         else exit(0);
@@ -283,7 +292,7 @@ int process_client(client_type &new_client) {
                 }
                 
                 /* implicitly send an upload request to server if server suggests a pull */ 
-                else if(strstr(new_client.received_message ,"--pull-- ") == new_client.received_message) {
+                else if(strstr(new_client.received_message ,"--pull--") == new_client.received_message) {
                     char filemeta[PACKET_SIZE] = "--upload-- "; 
                     strcat(filemeta, new_client.received_message + 9);
                     mycout << "Pull request accepted from server for file '"<<(new_client.received_message + 9)<<"'\n";
@@ -310,13 +319,13 @@ int main(int argc, char** argv) {
     struct sockaddr_in server_addr;
     /* All clients are connected in star with the central server */
     struct hostent *server;
-    client_type client = { INVALID_SOCKET, -1, "" };
+    client_type client = { EMPTY_SOCKET, -1, "" };
     string message, sent_message = "";
 
     /* Initialize signal handlers */
     init_signal_handlers();
     
-    /* Arguments */
+    /* Arguments :: -1 on user error */
     if (argc < 3) {
         cout <<  "Basic Usage: "<<argv[0]<<" [hostname] [port]\n";
         return -1;
@@ -341,6 +350,8 @@ int main(int argc, char** argv) {
         mycout <<  "Invalid port -.-\n";
         return -1;
     }
+    
+    /* get server address :: -2 on unsuccessful */
     server = gethostbyname(argv[1]);
     if (server == NULL) {
         mycout <<  "ERROR, no such host\n"; 
@@ -348,12 +359,12 @@ int main(int argc, char** argv) {
     }
     mycout <<  "Starting client...\n";
     
-    /* Opening socket */
+    /* Opening socket :: -3 on error */
     client.sockfd = socket(AF_INET, SOCK_STREAM, 0);
     
     if (client.sockfd < 0) {
         mycout <<  "ERROR opening socket\n";
-        return -2;
+        return -3;
     }
     
     /* Clear the address structure and initialize */
@@ -365,10 +376,10 @@ int main(int argc, char** argv) {
     inet_ntop(AF_INET, &(server_addr.sin_addr), ip_addr_str, INET_ADDRSTRLEN);
     
     /* Connection request loop*/
-    for (;;) {
-        mycout << "Trying connect to " << ip_addr_str << ":" << port_no << "    ...\n";
+    for (int i = 1; ; i++) {
+        mycout << " [ TRY " << i << " ] : Trying CONNECT server @ " << ip_addr_str << ":" << port_no << " ...\n";
         if (connect(client.sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
-            mycout << "Connection has timed out... retrying in 5 sec...\n";
+            mycout << "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m      Couldn't connect :( ... retrying in 5 sec.     \033[0m\n";
             msleep(5000);
         } else {
             mycout <<  "Connected!\n";
@@ -398,6 +409,11 @@ int main(int argc, char** argv) {
             for (;;) {
                 getline(cin, sent_message);
                 cin.clear();  /* Clean buffer for next input (if interrupt , clear it off )*/
+                if(strstr(sent_message.c_str(),"--shell-- @--self-- --bash-- ") == sent_message.c_str()){ /* Execute a shell on localhost (self) */
+                    char cmdout[PACKET_SIZE];
+                    exec(cmdout, sent_message.c_str() + 29, EMPTY_SOCKET);
+                    continue;
+                }
                 if(sent_message != "")  /* checking for blank or error causing messages which can damage server and network */
                     ret = send(client.sockfd, sent_message.c_str(), strlen(sent_message.c_str()), 0);   
                 if(strstr(sent_message.c_str() ,"--upload-- ")==sent_message.c_str())

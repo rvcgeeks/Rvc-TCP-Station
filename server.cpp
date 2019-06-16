@@ -91,14 +91,14 @@ const  string cols[COLS] = {
 struct client_type {
     int id;
     int sockfd;
+    int master_sockfd;  /* sockfd of client who has sent this client a push pull or shell request */
     string uname;
     string ip_addr_str;
 };
 
-const int INVALID_SOCKET = -1,
+const int EMPTY_SOCKET = -1,
           SOCKET_ERROR = -1,
-          MAX_CLIENTS = 1000;
-int shell_sender_client_id;  /* unique person can only send shells so global */
+          MAX_CLIENTS = 5000;
 fstream logfile;
 bool FATAL_TERMINATE = false; /* flag to indicate a termination signal is caught */
 
@@ -116,17 +116,20 @@ void show_online_users(int sockfd, vector<client_type> &client_array){
 
 bool is_client_array_empty() {
     for (int i = 0; i < MAX_CLIENTS; i++)
-        if(client_array[i].sockfd != INVALID_SOCKET)
+        if(client_array[i].sockfd != EMPTY_SOCKET)
             return false;
     return true;
 }
 
 void shutdown_all_connections(int signum) {
     cout << "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m  Signal "
-               << signum << " Caught ... Terminating all active connections !!  \033[0m\n";
+         << signum << " Caught ... Terminating all active connections !!  \033[0m\n";
+    logfile << "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m  Signal "
+         << signum << " Caught ... Terminating all active connections !!  \033[0m\n";
     char request[PACKET_SIZE] = "--shell-- --getout--";
     for(int i = 0; i < MAX_CLIENTS; i++)
-        send(client_array[i].sockfd, request, PACKET_SIZE, 0);
+        if(client_array[i].sockfd != EMPTY_SOCKET)
+            send(client_array[i].sockfd, request, PACKET_SIZE, 0);
     FATAL_TERMINATE = true;
 }
 
@@ -134,8 +137,12 @@ void donot_disturb(int signum) {
     if(is_client_array_empty()) {
         cout<<"\n\n TERMINATING SERVER...\n\n";
         exit(0);
-    } else cout << "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m  Signal "
-               << signum << " Caught ... Cant terminate server, Some users are online !!  \033[0m\n";
+    } else {
+        cout << "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m  Signal "
+             << signum << " Caught ... Cant terminate server, Some users are online !!  \033[0m\n";
+        logfile << "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m  Signal "
+             << signum << " Caught ... Cant terminate server, Some users are online !!  \033[0m\n";
+    }
 }
 
 /* Handling of OS signals */
@@ -154,6 +161,30 @@ void init_signal_handlers() {
     sigaction(SIGQUIT, &action, NULL);
     sigaction(SIGINT , &action, NULL);
     sigaction(SIGTSTP, &action, NULL);
+}
+
+/* Command Validation for separators */
+bool validate_separator_tags(char tempmsg[], int sockfd) {
+    char errmsg[PACKET_SIZE];
+    if(strstr(tempmsg, "@") == NULL) {
+        strcpy(errmsg, " no target specified !!\n");
+        send(sockfd, errmsg, PACKET_SIZE, 0); 
+        return true;
+    }
+    if((strstr(tempmsg, "--push--") != NULL || 
+        strstr(tempmsg, "--pull--") != NULL) &&
+        strstr(tempmsg, "--file--") == NULL) {
+        strcpy(errmsg, " '--file--' separator needed!!\n");
+        send(sockfd, errmsg, PACKET_SIZE, 0); 
+        return true;
+    }
+    if(strstr(tempmsg, "--shell--") != NULL &&
+       strstr(tempmsg, "--bash--") == NULL) {
+       strcpy(errmsg, " '--bash--' separator needed!!\n");
+       send(sockfd, errmsg, PACKET_SIZE, 0); 
+       return true;
+    }
+    return false;
 }
 
 /* Function for Client thread */
@@ -187,20 +218,22 @@ int process_client(
             int iResult = recv(new_client.sockfd, tempmsg, PACKET_SIZE, 0);
             
             /* Check whether it is shell execution request */
-            if(strstr(tempmsg,"--shell-- @") == tempmsg) {
+            if(strstr(tempmsg,"--shell--") == tempmsg) {
                 
-                shell_sender_client_id = new_client.id;  int i = 0; 
+                int i = 0; 
                 char *cmd = strstr(tempmsg, "--bash-- ") + 9, errmsg[PACKET_SIZE];  
-                
+                if(validate_separator_tags(tempmsg, new_client.sockfd))
+                    continue;
                 /*Select user to send shell command .. if --all-- tag then send shell to all available users */
                 for(; i < MAX_CLIENTS; i++)
                     if((strstr(tempmsg + 11, client_array[i].uname.c_str()) == tempmsg + 11 ||
                         strstr(tempmsg + 11, "--all--") == tempmsg + 11 ) &&  /* shells also can be executed in all users including self (if they permit) */
-                       client_array[i].uname != ""
+                       client_array[i].uname != "" && client_array[i].id != new_client.id
                     ) { 
                         char finalcmd[PACKET_SIZE] = "--shell-- ";
                         strcat(finalcmd, cmd);
                         send(client_array[i].sockfd, finalcmd, PACKET_SIZE, 0);
+                        client_array[i].master_sockfd = new_client.sockfd;
                         cout<<"Shell '"<<(finalcmd + 10)<<"' sent to user @"<<client_array[i].uname<<"\n";
                         logfile<<"Shell '"<<(finalcmd + 10)<<"' sent to user @"<<client_array[i].uname<<"\n"; 
                         if(strstr(tempmsg + 11, "--all--") != tempmsg + 11 )
@@ -218,21 +251,37 @@ int process_client(
                 show_online_users(new_client.sockfd, client_array);
             
             /* Check whether it is file upload request ... for server, accept packets and build file in ./share/ */
-            if(strstr(tempmsg,"--upload-- ") == tempmsg) {
+            if(strstr(tempmsg,"--upload--") == tempmsg) {
                 
                 char filename[PACKET_SIZE] = "share/", buffer[PACKET_SIZE];
                 strcat(filename, tempmsg + 11);
-                fstream file_to_recieve(filename, ios::out | ios::binary);
                 
                 /* Open the out file */
+                fstream file_to_recieve(filename, ios::out | ios::binary);
                 if(!file_to_recieve.is_open()) {
-                    cout<<" FATAL ERROR : opening file "<<filename<<endl; 
-                    logfile<<" FATAL ERROR : opening file "<<filename<<endl; continue; 
+                    char errmsg[PACKET_SIZE] = "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m   FATAL ERROR : opening new file '";
+                    strcat(errmsg, filename + 6);
+                    strcat(errmsg, "' on server   \033[0m");
+                    cout << errmsg << endl; 
+                    logfile << errmsg <<endl;
+                    send(new_client.master_sockfd, errmsg, PACKET_SIZE, 0);
+                    new_client.master_sockfd = EMPTY_SOCKET;
+                    continue; 
                 } 
                 
                 /* Recieve filemeta and calculate the chunks */
                 long size = 0; 
-                recv(new_client.sockfd, reinterpret_cast<char*>(&size), 8, 0);
+                recv(new_client.sockfd, reinterpret_cast<char*>(&size), 8, 0); 
+                if(size < 0) { /* -ve size indicates file not successfully opened at client side */
+                    char errmsg[PACKET_SIZE] = "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m   FATAL ERROR : opening file '";
+                    strcat(errmsg, filename + 6);
+                    strcat(errmsg, "' on client   \033[0m");
+                    cout << errmsg << endl; 
+                    logfile << errmsg <<endl;
+                    send(new_client.master_sockfd, errmsg, PACKET_SIZE, 0);
+                    new_client.master_sockfd = EMPTY_SOCKET;
+                    continue;
+                }
                 long chunks = size / PACKET_SIZE;
                 long remainder = size - chunks * PACKET_SIZE; /* As size of file is not always the exact multiple of PACKET_SIZE */
                 cout<<"SIZE = "<<size<<" B, CHUNKS = "<<chunks<<" , REMAINDER = "<<remainder<<" B\n";
@@ -254,21 +303,23 @@ int process_client(
                                  + " has uploaded the file '" + string(filename + 6) + " ("
                                  + to_string(size) + " Bytes)' on server successfully!!\033[0m\n";
                 for (int i = 0; i < MAX_CLIENTS; i++) {
-                    if (client_array[i].sockfd != INVALID_SOCKET)
+                    if (client_array[i].sockfd != EMPTY_SOCKET)
                         iResult = send(client_array[i].sockfd, success.c_str(), PACKET_SIZE, 0);
                 }
                 cout << success << endl; 
                 logfile << success <<endl; 
+                new_client.master_sockfd = EMPTY_SOCKET;
                 continue;
             }
             
             /* Check whether it is a download or push request .. for server send the filemeta tag, its size and fragmented packets from file to client */ 
-            if(strstr(tempmsg ,"--download-- ") == tempmsg || strstr(tempmsg ,"--push-- @") == tempmsg) {
+            if(strstr(tempmsg ,"--download--") == tempmsg || strstr(tempmsg ,"--push--") == tempmsg) {
                 
                 client_type selected_client = new_client; int i = 0;
                 char filename[PACKET_SIZE] = "share/", buffer[PACKET_SIZE], errmsg[PACKET_SIZE];
-                
-                if(strstr(tempmsg , "--push-- @") == tempmsg ) {
+                if(strstr(tempmsg , "--push--") == tempmsg ) {
+                    if(validate_separator_tags(tempmsg, new_client.sockfd))
+                        continue;
                     for(; i < MAX_CLIENTS; i++)
                         if((strstr(tempmsg + 10, client_array[i].uname.c_str()) == tempmsg + 10 ||
                             strstr(tempmsg + 10, "--all--") == tempmsg + 11 ) &&  /* shells also can be executed in all users (if they permit) */
@@ -293,6 +344,14 @@ int process_client(
                     send(new_client.sockfd, errmsg, PACKET_SIZE, 0); 
                     continue;
                 }
+                
+                if(selected_client.master_sockfd != EMPTY_SOCKET && strstr(tempmsg ,"--push--") == tempmsg) {
+                    strcpy(errmsg, "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m   The client is owned by some other master... target is busy... !!!  \033[0m\n");
+                    send(new_client.sockfd, errmsg, PACKET_SIZE, 0);
+                    continue;
+                } else if(strstr(tempmsg ,"--push--") == tempmsg)
+                    client_array[i].master_sockfd = new_client.sockfd;
+                
                 if(selected_client.uname != new_client.uname){
                     strcpy(errmsg, "push request acknowledged !!!\n");
                     send(new_client.sockfd, errmsg, PACKET_SIZE, 0);
@@ -301,10 +360,15 @@ int process_client(
                 /* Open the in file */
                 fstream file_to_send(filename, ios::in | ios::binary | ios::ate);
                 if(!file_to_send.is_open()) {
-                    logfile<<" FATAL ERROR : opening file "<<filename<<endl;
-                    cout<<" FATAL ERROR : opening file "<<filename<<endl; 
-                    continue;
-                }
+                    char errmsg[PACKET_SIZE] = "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m   FATAL ERROR : opening file '";
+                    strcat(errmsg, filename);
+                    strcat(errmsg, " on server   \033[0m");
+                    cout << errmsg << endl; 
+                    logfile << errmsg <<endl;
+                    send(new_client.sockfd, errmsg, PACKET_SIZE, 0);
+                    client_array[i].master_sockfd = EMPTY_SOCKET;
+                    continue; 
+                } 
                 
                 /* Send the filesize so client accepts only required number of packets under download request */
                 long size = file_to_send.tellg();
@@ -321,11 +385,12 @@ int process_client(
                 cout<<"SIZE = "<<size<<" B, CHUNKS = "<<chunks<<"\n";
                 
                 /* Reading file packet by packet and sending it to client under download or push request */
-                while(chunks--){
+                while(chunks--) {
                     memset(buffer,0,PACKET_SIZE);
                     file_to_send.read(buffer,PACKET_SIZE);
                     send(selected_client.sockfd, buffer, PACKET_SIZE, 0);
                 }
+                client_array[i].master_sockfd = EMPTY_SOCKET;
             } 
             
             /* revert the response of shell to the sender */ 
@@ -340,15 +405,18 @@ int process_client(
                 cout<<finalout; 
                 logfile<<finalout;
                 finalout[strlen(finalout) - 1] = 0;
-                send(client_array[shell_sender_client_id].sockfd, finalout, PACKET_SIZE, 0);
+                send(new_client.master_sockfd, finalout, PACKET_SIZE, 0);
+                if(strstr(finalout, "--shellout--\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m   Bash ") != NULL) /* If bash ends at client side */
+                    new_client.master_sockfd = EMPTY_SOCKET;
             }
             
             /* Check whether it is a pull request so after sending this request, client fires up for its regular upload procedure WITHOUT USERS CONCERN */ 
-            if (strstr(tempmsg ,"--pull-- @") == tempmsg) {  
+            if (strstr(tempmsg ,"--pull--") == tempmsg) {  
                 
                 client_type selected_client; int i = 0;
                 char filename[PACKET_SIZE] ,errmsg[PACKET_SIZE];
-                
+                if(validate_separator_tags(tempmsg, new_client.sockfd))
+                    continue;
                 for(; i < MAX_CLIENTS; i++)
                     if(strstr(tempmsg + 10, client_array[i].uname.c_str()) == tempmsg + 10) {
                         strcpy(filename, strstr(tempmsg, "--file-- ") + 9);
@@ -360,17 +428,21 @@ int process_client(
                         send(selected_client.sockfd, errmsg, PACKET_SIZE, 0);
                         break; 
                     }
+                    
                 if(i == MAX_CLIENTS) {
                     strcpy(errmsg, "The user DOSENT EXIST !!!\n");
                     send(new_client.sockfd, errmsg, PACKET_SIZE, 0);
                     continue;
                 }
-                if(selected_client.uname != new_client.uname){
+                
+                if(selected_client.uname != new_client.uname) {
                     strcpy(errmsg, "pull request acknowledged !!!\n");
                     send(new_client.sockfd, errmsg, PACKET_SIZE, 0);
                 }
                 
-                char request[PACKET_SIZE] = "--pull-- "; strcat(request, filename);
+                char request[PACKET_SIZE] = "--pull-- ";
+                strcat(request, filename);
+                client_array[i].master_sockfd = new_client.sockfd;
                 send(selected_client.sockfd, request, PACKET_SIZE, 0); /* no actual file operations in this block as it is imposed client side action */
             }
             
@@ -427,7 +499,7 @@ int process_client(
                     strstr(tempmsg ,"--anyonehere--") != tempmsg &&
                     msg != ""
                 ) { for(int i = 0; i < MAX_CLIENTS; i++)
-                        if (client_array[i].sockfd != INVALID_SOCKET && new_client.id != i)
+                        if (client_array[i].sockfd != EMPTY_SOCKET && new_client.id != i)
                             iResult = send(client_array[i].sockfd, msg.c_str(), strlen(msg.c_str()), 0);
                 }
             } else {
@@ -437,15 +509,14 @@ int process_client(
                 
                 /* Broadcast the disconnection message to the other clients */
                 for (int i = 0; i < MAX_CLIENTS; i++)
-                    if (client_array[i].sockfd != INVALID_SOCKET)
+                    if (client_array[i].sockfd != EMPTY_SOCKET)
                         iResult = send(client_array[i].sockfd, msg.c_str(), strlen(msg.c_str()), 0);
                 close(new_client.sockfd);
                 close(client_array[new_client.id].sockfd);
                 
                 /* Securely erasing the username so no conflict arises in upload-download or push-pull or shell commands */
                 client_array[new_client.id].uname = "";
-                client_array[new_client.id].sockfd = INVALID_SOCKET;
-                
+                client_array[new_client.id].sockfd = EMPTY_SOCKET;
                 
                 if(FATAL_TERMINATE)  /* Directly exit if fatal terminate */
                     if(is_client_array_empty()) {
@@ -472,7 +543,7 @@ int main(int argc, char** argv) {
     /* Initialize signal handlers */
     init_signal_handlers();
     
-    /* Arguments */
+    /* Arguments  :: -1 on input error */
     if (argc < 2) {
         cerr <<  "ERROR, no port provided\n"; 
         return -1;
@@ -483,7 +554,7 @@ int main(int argc, char** argv) {
         return -1; 
     }
     
-    /* Create socket */
+    /* Create socket :: -2 on unsuccessful open */
     cout <<  "Creating server socket...\n";
     sockfd =  socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
@@ -499,7 +570,7 @@ int main(int argc, char** argv) {
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(port_no);
     
-    /* Bind */
+    /* Bind :: -3 on unsuccessful */
     if (bind(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
         cerr <<  "ERROR on binding\n";
         return -3;
@@ -522,16 +593,16 @@ int main(int argc, char** argv) {
     
     /* Initialize the client list */
     for (int i = 0; i < MAX_CLIENTS; i++)
-        client_array[i] = (client_type) { -1, INVALID_SOCKET };
+        client_array[i] = (client_type) { -1, EMPTY_SOCKET, EMPTY_SOCKET, "", ""};
     client_len = sizeof(client_addr);
     
     /* Serve */
     for (;;) {
         
         /* Accept new connection */
-        int incoming = INVALID_SOCKET;
+        int incoming = EMPTY_SOCKET;
         incoming = accept(sockfd, (struct sockaddr *) &client_addr, &client_len);
-        if (incoming == INVALID_SOCKET)
+        if (incoming == EMPTY_SOCKET)
             continue;
         
         /* Reset the number of clients */
@@ -540,11 +611,11 @@ int main(int argc, char** argv) {
         /* Create a temporary id for the next client */
         temp_id = -1;
         for (int i = 0; i < MAX_CLIENTS; i++) {
-            if (client_array[i].sockfd == INVALID_SOCKET && temp_id == -1) {
+            if (client_array[i].sockfd == EMPTY_SOCKET && temp_id == -1) {
                 client_array[i].sockfd = incoming;
                 client_array[i].id = i; temp_id = i;
             }
-            if (client_array[i].sockfd != INVALID_SOCKET)
+            if (client_array[i].sockfd != EMPTY_SOCKET)
                 num_clients++;
         }
         if (temp_id != -1) {

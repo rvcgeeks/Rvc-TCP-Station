@@ -42,6 +42,16 @@ make server; make client
 
 ## Deployment
 
+Please note that the folders for ftp (uploads , downloads, share, logs) will be created 
+in the directory where 'rvc-tcp-station.run' was launched.
+
+We have an intuitive and interactive script that will launch the client automatically. For that run
+
+```
+./rvc-tcp-station.run
+```
+OR simply double click on the binary to launch.
+running the binary without arguments will start a xterm with the launcher script.
 On the terminal of PC you have decided to keep as server run rvc-tcp-server
 
 ```
@@ -68,13 +78,7 @@ for best results on hidden client execute it as boot process described as the fo
  The order of flags donot matter at all .. application will understand it
 but specify the username after --preset-uname flag if given.
 
-For some special options and if you feel the overall command syntax confusing,
-We have an intuitive and interactive script that will launch the client with
-above parameters automatically. For that run
 
-```
-./rvc-tcp-station.run
-```
 One can also set the client as a startup service via this script 
 to uninstall the client from startup service (if exist) just send -u flag to this script
 to do it in single commandline itself
