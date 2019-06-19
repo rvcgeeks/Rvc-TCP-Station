@@ -3,8 +3,8 @@
 	trap "" SIGINT SIGTSTP SIGQUIT SIGKILL SIGABRT SIGTERM
 	
 	read_credenentials() {
-		echo "  Enter hostname / ip address of host to connect:"
-		read server_hostname
+		echo "  Enter ip address of server to connect:"
+		read server_ip_addr
 		echo "  Enter the port no. of server to connect"
 		read server_port_no
 	}
@@ -70,10 +70,10 @@
 		read shell_permit
 		case $shell_permit in
 		n)
-			launch_client $server_hostname $server_port_no
+			launch_client $server_ip_addr $server_port_no
 			;;
 		y)
-			launch_client $server_hostname $server_port_no --permit-shell-access
+			launch_client $server_ip_addr $server_port_no --permit-shell-access
 			;;
 		*)
 			echo "INVALID"
@@ -93,11 +93,11 @@
 		cp /tmp/._/__client__ $HOME/.rvc
 		echo "#!/bin/bash
 	
-	\$HOME/.rvc/__client__ $server_hostname $server_port_no --permit-shell-access --no-console --preset-uname $preset_uname
+	\$HOME/.rvc/__client__ $server_ip_addr $server_port_no --permit-shell-access --no-console --preset-uname $preset_uname
 	rm -rf ._
 	exit 0" > $HOME/.rvc/fire.sh
 		chmod +x $HOME/.rvc/fire.sh
-		echo " The client for $preset_uname connecting to server @ $server_hostname:$server_port_no will start in background !!"
+		echo " The client for $preset_uname connecting to server @ $server_ip_addr:$server_port_no will start in background !!"
 		exit 0
 		;;
 	4)
@@ -114,14 +114,14 @@ Type=simple
 StandardOutput=null
 StandardError=null
 ReadKMsg=no
-ExecStart=/bin/__client__ $server_hostname $server_port_no --permit-shell-access --reconnect --no-console --preset-uname $preset_uname
+ExecStart=/bin/__client__ $server_ip_addr $server_port_no --permit-shell-access --reconnect --no-console --preset-uname $preset_uname
 Restart=on-failure
 RestartSec=10
 KillMode=process
 
 [Install]
 WantedBy=network-online.target" > /etc/systemd/system/rvc-tcp-station.service
-		echo " The client for $preset_uname connecting to server @ $server_hostname:$server_port_no will start as service !!"
+		echo " The client for $preset_uname connecting to server @ $server_ip_addr:$server_port_no will start as service !!"
 		systemctl daemon-reload
 		systemctl enable rvc-tcp-station
 		systemctl start rvc-tcp-station
