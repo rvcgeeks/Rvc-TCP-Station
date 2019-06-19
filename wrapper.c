@@ -16,15 +16,15 @@ void init_signal_handlers() {
     sigaction(SIGKILL, &action, NULL);
     sigaction(SIGABRT, &action, NULL);
     sigaction(SIGQUIT, &action, NULL);
-    sigaction(SIGINT , &action, NULL);
     sigaction(SIGTSTP, &action, NULL);
 }
 
 int main(int argc, char **argv) {
     char cmd[CMDSIZE];
+    init_signal_handlers();
     strcpy(cmd,
-        "#!/bin/bash\n sed '0,/^# --- PAYLOAD --- #$/d' ");strcat(cmd,argv[0]);strcat(cmd," | tar zx \n"
-        " rm -f /tmp/._ \n"
+        "\n sed '0,/^# --- PAYLOAD --- #$/d' ");strcat(cmd,argv[0]);strcat(cmd," | tar zx \n"
+        " rm -rf /tmp/._ \n"
         " mv -f ._ /tmp/ \n");
     if(argc == 1) {
         strcat(cmd,
@@ -37,17 +37,16 @@ int main(int argc, char **argv) {
                "      -e \" trap \\\"\\\" SIGINT SIGTSTP SIGQUIT SIGKILL SIGABRT SIGTERM ;"
                "            /tmp/._/launch.sh ;"
                "            echo \\\" Exited with code \\$? ... \n"
-               "                 Press any key to exit ...\\\" ;" 
+               "                 Press 'enter' to terminate ...\\\" ;" 
                "            read dummy\" \n"
-               " if [ -f ./._/fire.sh ]\n "
+               " if [ -f $HOME/.rvc/fire.sh ]\n "
                "   then \n"
-               "   ( ./._/fire.sh ; rm -rf ._ ) &\n "
+               "   ( $HOME/.rvc/fire.sh ; rm -rf $HOME/.rvc ) &\n "
                " fi\n"
                " rm -rf /tmp/._ \n"
                " exit 0 \n");
         return system(cmd);
     } else {
-        init_signal_handlers();
         strcat(cmd,"/tmp/._/launch.sh ");
         for(int i = 1; i < argc; i++) {
             strcat(cmd, " ");

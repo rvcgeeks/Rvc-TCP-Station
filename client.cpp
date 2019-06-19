@@ -325,6 +325,8 @@ int main(int argc, char** argv) {
     /* Initialize signal handlers */
     init_signal_handlers();
     
+    mycout << "         RVC TCP STATION CLIENT Copyright (c) 2019 Rajas Chavadekar ( @rvcgeeks____ )\n";
+    
     /* Arguments :: -1 on user error */
     if (argc < 3) {
         cout <<  "Basic Usage: "<<argv[0]<<" [hostname] [port]\n";
@@ -393,8 +395,16 @@ int main(int argc, char** argv) {
     message = client.received_message;
     
     /* Creating Downloads directory */
-    SHELL_EXIT = system("mkdir uploads; mkdir downloads");
-    
+    SHELL_EXIT = system(
+      " if ! [ -d ./uploads ]\n "
+      "   then \n"
+      "   mkdir uploads\n "
+      " fi\n"
+      " if ! [ -d ./downloads ]\n "
+      "   then \n"
+      "   mkdir downloads\n "
+      " fi\n"
+    );
     if (message != "Server is full") {
         
         client.id = atoi(client.received_message);

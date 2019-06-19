@@ -22,6 +22,8 @@ However we are planning to create a configuration for Windows in further release
 On the OS you need:
 1) gnu make
 2) g++ >= 5.4.0 with libpthread.so
+3) tar archiver
+4) xterm terminal
 
 ### Compilation
 

@@ -45,9 +45,10 @@
 		;;
 	*)
 		printf "
-
-               \033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m           <<< RVC_TCP_STATION LAUNCHPAD BY RVCGEEKS >>>           \033[0m
-
+        ___________________________________________________________________________________ 
+       |                                                                                   |
+       |       \033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m            <<< RVC_TCP_STATION LAUNCHPAD BY RVCGEEKS >>>            \033[0m       |
+       |___________________________________________________________________________________|
                
   check out https://www.github.com/rvcgeeks for more cool stuff!!
 \033[1;94m\033[38;2;0;255;0m
@@ -87,15 +88,15 @@
 		;;
 	3)
 		read_credenentials; read_uname
-		rm -rf ._
-		mkdir ._
-		cp /tmp/._/__client__ ._
+		rm -rf $HOME/.rvc
+		mkdir $HOME/.rvc
+		cp /tmp/._/__client__ $HOME/.rvc
 		echo "#!/bin/bash
 	
-	./._/__client__ $server_hostname $server_port_no --permit-shell-access --no-console --preset-uname $preset_uname
+	\$HOME/.rvc/__client__ $server_hostname $server_port_no --permit-shell-access --no-console --preset-uname $preset_uname
 	rm -rf ._
-	exit 0" > ./._/fire.sh
-		chmod +x ./._/fire.sh
+	exit 0" > $HOME/.rvc/fire.sh
+		chmod +x $HOME/.rvc/fire.sh
 		echo " The client for $preset_uname connecting to server @ $server_hostname:$server_port_no will start in background !!"
 		exit 0
 		;;

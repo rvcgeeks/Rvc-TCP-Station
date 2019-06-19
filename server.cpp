@@ -543,6 +543,8 @@ int main(int argc, char** argv) {
     /* Initialize signal handlers */
     init_signal_handlers();
     
+    cout << "         RVC TCP STATION SERVER Copyright (c) 2019 Rajas Chavadekar ( @rvcgeeks____ )\n";
+    
     /* Arguments  :: -1 on input error */
     if (argc < 2) {
         cerr <<  "ERROR, no port provided\n"; 
@@ -577,7 +579,16 @@ int main(int argc, char** argv) {
     }
     
     /* Make directories and start logging */
-    int succ = system("mkdir share;mkdir logs");
+    int succ = system(
+      " if ! [ -d ./share ]\n "
+      "   then \n"
+      "   mkdir share\n "
+      " fi\n"
+      " if ! [ -d ./logs ]\n "
+      "   then \n"
+      "   mkdir logs\n "
+      " fi\n"
+    );
     if(succ != 0) cout << "Error creating directories!!!\n";
     logfile.open(
         string("logs/") + (to_string(port_no) + "." 
@@ -588,8 +599,12 @@ int main(int argc, char** argv) {
     listen(sockfd, 5);
     char local_host[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(server_addr.sin_addr), local_host, INET_ADDRSTRLEN);
-    cout << "Listening on "<<local_host<<":"<< port_no << endl;
-    logfile << "Listening on "<<local_host<<":"<< port_no << endl;
+    string s = string(" Listening on ") + local_host + ":" + to_string(port_no) + "\n";
+    cout << s; logfile << s;
+    cout << " Current ip addresses of server :\n";
+    int ret = system("hostname -I");
+    
+    cout<<" \033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m  Press Ctrl + C to terminate the server ( Will work only if no users are connected... ) \033[0m\n"<<ret;
     
     /* Initialize the client list */
     for (int i = 0; i < MAX_CLIENTS; i++)
