@@ -89,7 +89,7 @@ const  string cols[COLS] = {
     "\033[38;2;0;255;128m"
 };
 
-#define PACKET_SIZE 1024
+#define PACKET_SIZE 2048
 
 struct client_type {
     int id;

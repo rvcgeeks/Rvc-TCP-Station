@@ -24,7 +24,7 @@ using namespace std;
 
 /* Declarations */
 
-#define PACKET_SIZE 1024
+#define PACKET_SIZE 2048
 
 struct client_type {
     int id;
