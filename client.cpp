@@ -318,7 +318,7 @@ int main(int argc, char** argv) {
     int port_no, ret = 0;
     struct sockaddr_in server_addr;
     /* All clients are connected in star with the central server */
-   // struct hostent *server;
+    struct hostent *server;
     client_type client = { EMPTY_SOCKET, -1, "" };
     string message, sent_message = "";
     
@@ -351,13 +351,11 @@ int main(int argc, char** argv) {
     }
     
     /* get server address :: -2 on unsuccessful */
-    /*server = gethostbyname(argv[1]);
+    server = gethostbyname(argv[1]);
     if (server == NULL) {
         mycout <<  "ERROR, no such host\n"; 
         return -2;
-    }*/
-    
-    
+    }
     
     mycout <<  "Starting client...\n";
     
@@ -372,12 +370,12 @@ int main(int argc, char** argv) {
     /* Clear the address structure and initialize */
     bzero((char *) &server_addr, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
-   // bcopy( (char *)server->h_addr,(char *)&server_addr.sin_addr.s_addr,server->h_length );
+    bcopy( (char *)server->h_addr,(char *)&server_addr.sin_addr.s_addr,server->h_length );
     server_addr.sin_port = htons(port_no);
-    if(inet_pton(AF_INET, argv[1], &server_addr.sin_addr)<=0) {
+   /* if(inet_pton(AF_INET, argv[1], &server_addr.sin_addr)<=0) {
         printf("\n inet_pton error occured\n");
         return -2;
-    } 
+    }*/ 
     char ip_addr_str[PACKET_SIZE];
     inet_ntop(AF_INET, &(server_addr.sin_addr), ip_addr_str, INET_ADDRSTRLEN); // again conversion for validating that inet_pton is working
     

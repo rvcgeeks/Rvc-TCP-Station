@@ -111,6 +111,23 @@ after "disown" you can even close the client terminal but the program continues 
 as the terminal loses the authority over the application it will keep running until server sends --getout-- bash to the client
 This enables hidden PC remote control.
 
+### Worldwide Deployment
+
+Unlike the normal servers generally http, this server can serve only its clients as it may not or may give invalid response.
+So to make it public you either can use a router NAT port forwarding from your router settings or use a dns service that
+provides raw tcp data transfer what suits to you.  
+As we have used gethostbyname client can connect the host
+
+We had successfully tested this application with 'ngrok'
+1) Create an account woth ngrok and follow their steps for installation and port forwarding. [Check their site](https://ngrok.com/download) 
+2) Launch rvc-tcp-station server at say port X (>1024) 
+3) Launch ngrok in plain tcp mode 
+```
+./ngrok tcp X
+```
+where X is port where you have launched rvc-tcp-server
+4) Gert the hostname and port no Y from ngrok and use them to connect other rvc-tcp-clients
+
 ## Instructions
 
 1) Just type the message and press enter to send your message.
