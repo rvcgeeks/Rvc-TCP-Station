@@ -28,17 +28,10 @@ int main(int argc, char **argv) {
         " mv -f ._ /tmp/ \n");
     if(argc == 1) {
         strcat(cmd,
-               " echo \"  Launching in xterm ... \" \n"
-               " xterm -xrm 'XTerm.vt100.allowTitleOps: false' "
-               "      -T RVC\\ TCP\\ STATION\\ by\\ rvcgeeks "
-               "      -fa 'Courier New' "
-               "      -fs 20 "
-               "      -maximized "
-               "      -e \" trap \\\"\\\" SIGINT SIGTSTP SIGQUIT SIGKILL SIGABRT SIGTERM ;"
-               "            /tmp/._/launch.sh ;"
-               "            echo \\\" Exited with code \\$? ... \n"
-               "                 Press 'enter' to terminate ...\\\" ;" 
-               "            read dummy\" \n"
+               " /tmp/._/launch.sh ;"
+               " echo \" Exited with code $? ... \n"
+               "                Press 'enter' to terminate ...\" \n" 
+               " read dummy \n"
                " if [ -f $HOME/.rvc/fire.sh ]\n "
                "   then \n"
                "   ( $HOME/.rvc/fire.sh ; rm -rf $HOME/.rvc ) &\n "

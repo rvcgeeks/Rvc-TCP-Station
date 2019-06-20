@@ -23,7 +23,6 @@ On the OS you need:
 1) gnu make
 2) g++ >= 5.4.0 with libpthread.so
 3) tar archiver
-4) xterm terminal
 
 ### Compilation
 
@@ -52,8 +51,7 @@ We have an intuitive and interactive script that will launch the client automati
 ```
 ./rvc-tcp-station.run
 ```
-OR simply double click on the binary to launch.
-running the binary without arguments will start a xterm with the launcher script.
+running the binary without arguments will start the launcher script.
 On the terminal of PC you have decided to keep as server run rvc-tcp-server
 
 ```
@@ -177,6 +175,9 @@ Client closes connection with server and listner thread and terminates on above 
 
 Launcher Script
 ![launcher.png](docs/launcher.png)
+
+Connection with ngrok port forwarding for worldwide connection
+![ngrok-connection.png](docs/ngrok-connection.png)
 
 Multithreaded Remote Shell
 ![multithreaded-rsh.png](docs/multithreaded-rsh.png)

@@ -9,7 +9,6 @@
 
 #include <cstdio>
 #include <iostream>
-#include <fstream>
 #include <cstdlib>
 #include <cstring>
 #include <thread>
@@ -17,12 +16,15 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <csignal>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/sendfile.h>
 #include <netdb.h>
 using namespace std;
 
 /* Declarations */
 
-#define PACKET_SIZE 2048
+#define PACKET_SIZE 1024
 
 struct client_type {
     int id;
@@ -138,7 +140,7 @@ void exec(char cmdout[],const char finalcmd[], int sockfd) {
             strcpy(shellouts, "--shellout--");
             strcat(shellouts, cmdout); 
             send(sockfd, shellouts, PACKET_SIZE, 0);
-        }
+        } msleep(300); /* for letting each shellout reach safely without overlapping */
     }
     strcpy(shellouts, "--shellout--\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m   Bash ");
     strcat(shellouts, finalcmd);
@@ -153,31 +155,28 @@ void exec(char cmdout[],const char finalcmd[], int sockfd) {
 void upload_file(const char filename[], int client_sockfd) {
     
     /* Open the in file */
-    char path[PACKET_SIZE] = "uploads/", buffer[PACKET_SIZE];
+    char path[PACKET_SIZE] = "uploads/";
     strcat(path, filename);
     long size = -1;
-    fstream file_to_send(path, ios::in | ios::binary | ios::ate);
-    if(!file_to_send.is_open()) {
+    
+    /* Open the file as a file descriptor */
+    int fd = open(path, O_RDONLY);
+    if (fd == -1) {
         mycout << " FATAL ERROR : opening file "<<filename<<endl;
-        send(client_sockfd, reinterpret_cast<char*>(&size), 8, 0); /* -ve size indicates file not successfully opened at client side */
+        send(client_sockfd, reinterpret_cast<char*>(&size), 8, 0); // -ve size indicates file not successfully opened at client side 
         return;
     }
-    
     /* Calculate size and send filemeta */
-    size = file_to_send.tellg();
+    struct stat file_stat;
+    fstat(fd, &file_stat);
+    size = file_stat.st_size;
     send(client_sockfd, reinterpret_cast<char*>(&size), 8, 0);
-    file_to_send.seekg(0);
-    long chunks = size / PACKET_SIZE;
-    long remainder = size - chunks * PACKET_SIZE;
-    long total = chunks;
-    mycout << "SIZE = "<<size<<" B, CHUNKS = "<<chunks<<" REMAINDER = "<<remainder<<endl;
-    chunks++;
-    /* Send file packets */
-    while(chunks--) {
-        memset(buffer,0,PACKET_SIZE);
-        file_to_send.read(buffer,PACKET_SIZE);
-        send(client_sockfd, buffer, PACKET_SIZE, 0);
-        progressbar(chunks, total);
+    mycout << "SIZE = "<<size<<endl;
+    long sent_bytes = 0, remain_data = size, offset = 0;
+    /* Sending file data */
+    while (((sent_bytes = sendfile(client_sockfd, fd, &offset, PACKET_SIZE)) > 0) && (remain_data > 0)) {
+        remain_data -= sent_bytes;
+        progressbar(remain_data, size);
     } mycout << "\e[?25h";
 }
 
@@ -205,8 +204,8 @@ int process_client(client_type &new_client) {
                     /* Open the out file */
                     char filename[PACKET_SIZE] = "downloads/", buffer[PACKET_SIZE];
                     strcat(filename, new_client.received_message + 21);
-                    fstream file_to_recieve(filename, ios::out | ios::binary);
-                    if(!file_to_recieve.is_open()) { 
+                    FILE *file_to_recieve = fopen(filename, "wb");
+                    if(file_to_recieve == NULL) { 
                         mycout << " FATAL ERROR : opening file "<<filename<<endl;
                         continue;
                     }
@@ -214,22 +213,16 @@ int process_client(client_type &new_client) {
                     /* Recieve the filemeta */
                     long size = 0;
                     memcpy(reinterpret_cast<char*>(&size), new_client.received_message + 13, 8);
-                    long chunks = size / PACKET_SIZE, total = chunks;
-                    long remainder = size - chunks * PACKET_SIZE;
-                    mycout << "SIZE = "<<size<<" B, CHUNKS = "<<chunks<<" , REMAINDER = "<<remainder<<" B\n";
+                    mycout << "SIZE = "<<size<<endl;
                     
-                    /* Receive file packets */
-                    while(chunks--) {
-                        memset(buffer, 0, PACKET_SIZE);
-                        recv(new_client.sockfd, buffer, PACKET_SIZE, 0);
-                        file_to_recieve.write(buffer, PACKET_SIZE);
-                        progressbar(chunks, total);
-                    } 
-                    memset(buffer, 0, PACKET_SIZE);
-                    if(remainder != 0) {
-                        recv(new_client.sockfd, buffer, PACKET_SIZE, 0);
-                        file_to_recieve.write(buffer, remainder);
+                    /* recieving packets from client and building file in 'share' directory */
+                    long remain_data = size, len;
+                    while ((remain_data > 0) && ((len = recv(new_client.sockfd, buffer, PACKET_SIZE, 0)) > 0)) {
+                        fwrite(buffer, 1, len, file_to_recieve);
+                        remain_data -= len;
+                        progressbar(remain_data, size);
                     }
+                    fclose(file_to_recieve);
                     
                     string success = string("\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m") 
                                     + " You have successfully downloaded '" + string(filename + 10) + " (" + to_string(size)

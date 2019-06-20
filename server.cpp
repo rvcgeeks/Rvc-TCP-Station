@@ -57,7 +57,7 @@ const char banner[] = "\n" STYLE /* This banner is displayed when a client conne
 
 #include <cstdio>
 #include <iostream>
-#include <fstream>
+#include <fstream> // for logfile
 #include <cstdlib>
 #include <cstring>
 #include <thread>
@@ -65,6 +65,9 @@ const char banner[] = "\n" STYLE /* This banner is displayed when a client conne
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <csignal>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/sendfile.h>
 #include <ctime> //for maintaining server time
 #include <vector>
 using namespace std;
@@ -86,7 +89,7 @@ const  string cols[COLS] = {
     "\033[38;2;0;255;128m"
 };
 
-#define PACKET_SIZE 2048
+#define PACKET_SIZE 1024
 
 struct client_type {
     int id;
@@ -95,6 +98,17 @@ struct client_type {
     string uname;
     string ip_addr_str;
 };
+
+/* Time delay by msleep */
+int msleep(unsigned long milisec){
+    struct timespec req={0};
+    time_t sec=(int)(milisec / 1000);
+    milisec -= sec*1000;
+    req.tv_sec = sec;
+    req.tv_nsec = milisec * 1000000L;
+    while(nanosleep(&req,&req) == -1);
+    return 1;
+}
 
 const int EMPTY_SOCKET = -1,
           SOCKET_ERROR = -1,
@@ -257,8 +271,8 @@ int process_client(
                 strcat(filename, tempmsg + 11);
                 
                 /* Open the out file */
-                fstream file_to_recieve(filename, ios::out | ios::binary);
-                if(!file_to_recieve.is_open()) {
+                FILE *file_to_recieve = fopen(filename, "wb");
+                if(file_to_recieve == NULL) {
                     char errmsg[PACKET_SIZE] = "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m   FATAL ERROR : opening new file '";
                     strcat(errmsg, filename + 6);
                     strcat(errmsg, "' on server   \033[0m");
@@ -280,22 +294,18 @@ int process_client(
                     logfile << errmsg <<endl;
                     send(new_client.master_sockfd, errmsg, PACKET_SIZE, 0);
                     new_client.master_sockfd = EMPTY_SOCKET;
+                    fclose(file_to_recieve);
                     continue;
                 }
-                long chunks = size / PACKET_SIZE;
-                long remainder = size - chunks * PACKET_SIZE; /* As size of file is not always the exact multiple of PACKET_SIZE */
-                cout<<"SIZE = "<<size<<" B, CHUNKS = "<<chunks<<" , REMAINDER = "<<remainder<<" B\n";
+                cout<<"SIZE = "<<size<<endl;
                 
                 /* recieving packets from client and building file in 'share' directory */
-                while(chunks--) {
-                    memset(buffer,0,PACKET_SIZE);
-                    recv(new_client.sockfd, buffer, PACKET_SIZE, 0);
-                    file_to_recieve.write(buffer,PACKET_SIZE);
-                } 
-                memset(buffer,0,PACKET_SIZE);
-                recv(new_client.sockfd, buffer, PACKET_SIZE, 0);
-                if(remainder !=0 )
-                    file_to_recieve.write(buffer, remainder);
+                long remain_data = size, len;
+                while ((remain_data > 0) && ((len = recv(new_client.sockfd, buffer, PACKET_SIZE, 0)) > 0)) {
+                    fwrite(buffer, 1, len, file_to_recieve);
+                    remain_data -= len;
+                }
+                fclose(file_to_recieve);
                 
                 /* Broadcast the upload message to the other clients */
                 string success = string("\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m") 
@@ -316,7 +326,7 @@ int process_client(
             if(strstr(tempmsg ,"--download--") == tempmsg || strstr(tempmsg ,"--push--") == tempmsg) {
                 
                 client_type selected_client = new_client; int i = 0;
-                char filename[PACKET_SIZE] = "share/", buffer[PACKET_SIZE], errmsg[PACKET_SIZE];
+                char filename[PACKET_SIZE] = "share/", errmsg[PACKET_SIZE];
                 if(strstr(tempmsg , "--push--") == tempmsg ) {
                     if(validate_separator_tags(tempmsg, new_client.sockfd))
                         continue;
@@ -358,8 +368,8 @@ int process_client(
                 }
                 
                 /* Open the in file */
-                fstream file_to_send(filename, ios::in | ios::binary | ios::ate);
-                if(!file_to_send.is_open()) {
+                int fd = open(filename, O_RDONLY);
+                if (fd == -1) {
                     char errmsg[PACKET_SIZE] = "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m   FATAL ERROR : opening file '";
                     strcat(errmsg, filename);
                     strcat(errmsg, " on server   \033[0m");
@@ -368,28 +378,24 @@ int process_client(
                     send(new_client.sockfd, errmsg, PACKET_SIZE, 0);
                     client_array[i].master_sockfd = EMPTY_SOCKET;
                     continue; 
-                } 
+                }
                 
                 /* Send the filesize so client accepts only required number of packets under download request */
-                long size = file_to_send.tellg();
+                struct stat file_stat;
+                fstat(fd, &file_stat);
+                long size = file_stat.st_size;
                 char filemeta[PACKET_SIZE] = "--filemeta-- ";
                 memcpy(filemeta + 13, reinterpret_cast<char*>(&size), 8);
                 strcat(filemeta + 21, filename + 6);
                 send(selected_client.sockfd, filemeta, PACKET_SIZE, 0);
-                
-                /* Calculate no. of chunks of file */
-                file_to_send.seekg(0);
-                long chunks = size / PACKET_SIZE;
-                long remainder = size - chunks * PACKET_SIZE;
-                if(remainder != 0) chunks++;
-                cout<<"SIZE = "<<size<<" B, CHUNKS = "<<chunks<<"\n";
+                cout<<"SIZE = "<<size<<endl;
                 
                 /* Reading file packet by packet and sending it to client under download or push request */
-                while(chunks--) {
-                    memset(buffer,0,PACKET_SIZE);
-                    file_to_send.read(buffer,PACKET_SIZE);
-                    send(selected_client.sockfd, buffer, PACKET_SIZE, 0);
+                long sent_bytes = 0, remain_data = size, offset = 0;
+                while (((sent_bytes = sendfile(selected_client.sockfd, fd, &offset, PACKET_SIZE)) > 0) && (remain_data > 0)) {
+                    remain_data -= sent_bytes;
                 }
+                
                 client_array[i].master_sockfd = EMPTY_SOCKET;
             } 
             
