@@ -412,8 +412,10 @@ int process_client(
                 logfile<<finalout;
                 finalout[strlen(finalout) - 1] = 0;
                 send(new_client.master_sockfd, finalout, PACKET_SIZE, 0);
-                if(strstr(finalout, "--shellout--\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m   Bash ") != NULL) /* If bash ends at client side */
+                if(strstr(tempmsg, "\033[48;2;255;0;0m\033[1;94m\033[38;2;255;255;255m   Bash ") == tempmsg + 12) { /* If bash ends at client side */
+                    cout<<"MASTER HAS SURRENDERED!!\n";
                     new_client.master_sockfd = EMPTY_SOCKET;
+                }
             }
             
             /* Check whether it is a pull request so after sending this request, client fires up for its regular upload procedure WITHOUT USERS CONCERN */ 
@@ -549,7 +551,7 @@ int main(int argc, char** argv) {
     /* Initialize signal handlers */
     init_signal_handlers();
     
-    cout << "         RVC TCP STATION SERVER Copyright (c) 2019 Rajas Chavadekar ( @rvcgeeks____ )\n";
+    cout << "    RVC TCP STATION SERVER Copyright (c) 2019 Rajas Chavadekar ( @rvcgeeks____ )\n";
     
     /* Arguments  :: -1 on input error */
     if (argc < 2) {
