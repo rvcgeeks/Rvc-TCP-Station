@@ -3,7 +3,9 @@
 An all in one TCP server client system in Linux
 1) Multi user TCP/IP chat
 2) Multithreaded RSH (Remote Shell control)
-3) Checksum safe FTP (File transfer protocol)
+3) Checksum safe FT (File transfer) <br>
+Note:
+   No actual FTP or SSH protocol used .. operation identified by command token
 
 ## Internal Architecture
 
