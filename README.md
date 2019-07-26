@@ -126,7 +126,8 @@ We had successfully tested this application with 'ngrok'
 ./ngrok tcp X
 ```
 where X is port where you have launched rvc-tcp-server
-4) Gert the hostname and port no Y from ngrok and use them to connect other rvc-tcp-clients
+
+4) Get the hostname and port no Y from ngrok and use them to connect other rvc-tcp-clients
 
 ## Instructions
 
