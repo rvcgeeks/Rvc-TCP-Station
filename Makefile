@@ -20,17 +20,19 @@ client :
 wrapper :
 	$(CXX) $(CXXFLAGS) wrapper.c -o __wrapper__ $(LDFLAGS)
 	strip $(STRIPFLAGS) __wrapper__
-pack :
+pack : 
 	rm -rf ._
 	mkdir ._
 	mv __server__ ._
 	mv __client__ ._
+	chmod +x launch.sh
 	cp launch.sh ._
 	export GZIP=-9
 	tar zcf payload.tar.gz ._
 	printf '\n%s\n' "# --- PAYLOAD --- #" >> __wrapper__
 	cat __wrapper__ payload.tar.gz > rvc-tcp-station.run
 	chmod +x rvc-tcp-station.run
+	mv rvc-tcp-station.run release
 	rm __wrapper__
 	rm payload.tar.gz
 	rm -rf ._
