@@ -308,14 +308,14 @@ int main(int argc, char** argv) {
     
     RECONNECT_SERVER:
     
-    int port_no, ret = 0;
+    int port_no;
     struct sockaddr_in server_addr;
     /* All clients are connected in star with the central server */
     struct hostent *server;
     client_type client = { EMPTY_SOCKET, -1, "" };
     string message, sent_message = "";
     
-    mycout << "         RVC TCP STATION CLIENT Copyright (c) 2019 Rajas Chavadekar ( @rvcgeeks____ )\n";
+    mycout << "    RVC TCP STATION CLIENT Copyright (c) 2019 Rajas Chavadekar ( @rvcgeeks____ )\n";
     
     /* Arguments :: -1 on user error */
     if (argc < 3) {
@@ -423,16 +423,12 @@ int main(int argc, char** argv) {
                     continue;
                 }
                 if(sent_message != "")  /* checking for blank or error causing messages which can damage server and network */
-                    ret = send(client.sockfd, sent_message.c_str(), strlen(sent_message.c_str()), 0);   
+                    send(client.sockfd, sent_message.c_str(), strlen(sent_message.c_str()), 0);   
                 if(strstr(sent_message.c_str() ,"--upload-- ")==sent_message.c_str())
                     upload_file(sent_message.c_str() + 11, client.sockfd);
                 if(sent_message == "--exit--") {
                     mycout << "Thank You for using this chatroom !! exiting now...\n\n";
                     break;
-                }
-                if (ret <= 0) {
-                    mycout <<  "send() failed\n";
-                    break; 
                 }
             }
             
