@@ -23,7 +23,7 @@ wrapper :
 pack : 
 	rm -rf ._
 	mkdir ._
-	mv __server__ ._
+	cp __server__ ._
 	mv __client__ ._
 	chmod +x launch.sh
 	cp launch.sh ._
