@@ -1,1 +1,0 @@
-web: ./__server__ $PORT
